@@ -2,6 +2,13 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:context="com.example.android.autoeditor.MainActivity">
+    <item android:id="@+id/bno_bookmark"
+        android:visible="true"
+        android:title="@string/help_image"
+        android:icon="@drawable/ic_help_icon"
+        app:showAsAction="ifRoom">
+    </item>
+
     <item
         android:id="@+id/action_settings"
         android:orderInCategory="100"
