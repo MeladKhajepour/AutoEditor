@@ -54,6 +54,7 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        //button select for the plus button
         textSelect = findViewById(R.id.select_option_TextView);
         textSelect.setOnClickListener(new View.OnClickListener() {
 
@@ -87,8 +88,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void editPicker() {
+
+        //selectable items inside an array
         final CharSequence[] items = {"Select a Picture", "Select from Gallery",
                 "Cancel"};
+
+        //opens the alertbox
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setTitle("Add a Photo!");
         builder.setItems(items, new DialogInterface.OnClickListener() {
@@ -125,6 +130,7 @@ public class MainActivity extends AppCompatActivity {
         startActivityForResult(Intent.createChooser(intent, "Select File"), SELECT_FILE);
     }
 
+    //responsible for receiving results for permission request
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         switch (requestCode) {
@@ -135,13 +141,14 @@ public class MainActivity extends AppCompatActivity {
                     else if (userSelectedTask.equals("Select from Gallery"))
                         galleryIntent();
                 } else {
-                    //code for deny
-                    Log.d("Tag", "Needs to do something, in development");
+                    Toast.makeText(getApplicationContext(), "Media Permissions has been denied!",
+                            Toast.LENGTH_LONG).show();
                 }
                 break;
         }
     }
 
+    //results on dialog pick user
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
@@ -154,6 +161,7 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    //responsible to getting the image taken by user and then sending it to second activity
     private void onCaptureImageResult(Intent data) {
         Bundle extras = data.getExtras();
         Bitmap imageBitmap = (Bitmap) Objects.requireNonNull(extras).get("data");
@@ -163,6 +171,7 @@ public class MainActivity extends AppCompatActivity {
         startActivity(in1);
     }
 
+    //grabs image from gallery and sents the intent into another activity
     @SuppressWarnings("deprecation")
     private void onSelectFromGalleryResult(Intent data) {
 

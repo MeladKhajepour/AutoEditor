@@ -25,10 +25,12 @@ public class EditPicture extends AppCompatActivity {
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
+        //tries the receive the intent on photo taken
         ImageView result = findViewById(R.id.selected_picture_image_view);
         Bundle extras = getIntent().getExtras();
         Bitmap image = (Bitmap) Objects.requireNonNull(extras).get("image");
 
+        //if photo taken is not there, get the gallery image
         if(image == null) {
             try {
                 String filename = getIntent().getStringExtra("galleryImage");
@@ -39,7 +41,7 @@ public class EditPicture extends AppCompatActivity {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        } else{
+        } else{ //else add the photo taken to image view of activity
             result.setImageBitmap(image);
         }
     }
