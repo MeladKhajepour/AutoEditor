@@ -1,7 +1,5 @@
 package com.example.android.autoeditor;
 
-import android.Manifest;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Context;
@@ -11,41 +9,30 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityCompat;
-import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
-import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Button;
-import android.widget.ImageView;
+import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.w3c.dom.Text;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
+    public static final String TAKE_A_PICTURE = "Take a Picture";
+    public static final String SELECT_FROM_GALLERY = "Select from Gallery";
+    public static final String IMAGE = "image";
+    public static final String GALLERY_IMAGE = "galleryImage";
     private String userSelectedTask;
     private int REQUEST_CAMERA = 0, SELECT_FILE = 1;
     private TextView textSelect;
+    private Intent startEditPictureActivity;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,6 +50,7 @@ public class MainActivity extends AppCompatActivity {
                 editPicker();
             }
         });
+        startEditPictureActivity = new Intent(this, EditPicture.class);
     }
 
     @Override
@@ -90,27 +78,24 @@ public class MainActivity extends AppCompatActivity {
     private void editPicker() {
 
         //selectable items inside an array
-        final CharSequence[] items = {"Select a Picture", "Select from Gallery",
-                "Cancel"};
+        final CharSequence[] alertDialogSelections = {TAKE_A_PICTURE, SELECT_FROM_GALLERY};
 
         //opens the alertbox
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setTitle("Add a Photo!");
-        builder.setItems(items, new DialogInterface.OnClickListener() {
+        builder.setItems(alertDialogSelections, new DialogInterface.OnClickListener() {
             @Override
-            public void onClick(DialogInterface dialog, int item) {
-                boolean result = CameraPermissionUtility.checkPermission(MainActivity.this);
-                if (items[item].equals("Select a Picture")) {
-                    userSelectedTask = "Select a Picture";
-                    if (result) {
+            public void onClick(DialogInterface dialog, int selection) {
+                boolean hasPermission = CameraPermissionUtility.checkPermission(MainActivity.this); // todo add camera permission
+                if (alertDialogSelections[selection].equals(TAKE_A_PICTURE)) {
+                    userSelectedTask = TAKE_A_PICTURE;
+                    if (hasPermission) {
                         cameraIntent();
                     }
-                } else if (items[item].equals("Select from Gallery")) {
-                    userSelectedTask = "Select from Gallery";
-                    if (result)
+                } else if (alertDialogSelections[selection].equals(SELECT_FROM_GALLERY)) {
+                    userSelectedTask = SELECT_FROM_GALLERY;
+                    if (hasPermission)
                         galleryIntent();
-                } else if (items[item].equals("Cancel")) {
-                    dialog.dismiss();
                 }
             }
         });
@@ -136,12 +121,12 @@ public class MainActivity extends AppCompatActivity {
         switch (requestCode) {
             case CameraPermissionUtility.MY_PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE:
                 if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    if (userSelectedTask.equals("Select a Picture"))
+                    if (userSelectedTask.equals(TAKE_A_PICTURE))
                         cameraIntent();
-                    else if (userSelectedTask.equals("Select from Gallery"))
+                    else if (userSelectedTask.equals(SELECT_FROM_GALLERY))
                         galleryIntent();
                 } else {
-                    Toast.makeText(getApplicationContext(), "Media Permissions has been denied!",
+                    Toast.makeText(getApplicationContext(), "Media Permissions have been denied!",
                             Toast.LENGTH_LONG).show();
                 }
                 break;
@@ -166,9 +151,8 @@ public class MainActivity extends AppCompatActivity {
         Bundle extras = data.getExtras();
         Bitmap imageBitmap = (Bitmap) Objects.requireNonNull(extras).get("data");
 
-        Intent in1 = new Intent(this, EditPicture.class);
-        in1.putExtra("image", imageBitmap);
-        startActivity(in1);
+        startEditPictureActivity.putExtra(IMAGE, imageBitmap);
+        startActivity(startEditPictureActivity);
     }
 
     //grabs image from gallery and sents the intent into another activity
@@ -190,9 +174,8 @@ public class MainActivity extends AppCompatActivity {
             selectedImage.recycle();
 
             //Pop intent
-            Intent in1 = new Intent(this, EditPicture.class);
-            in1.putExtra("galleryImage", filename);
-            startActivity(in1);
+            startEditPictureActivity.putExtra(GALLERY_IMAGE, filename);
+            startActivity(startEditPictureActivity);
         } catch (Exception e) {
             e.printStackTrace();
         }
