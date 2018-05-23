@@ -5,6 +5,9 @@
 
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove"/>
+    <uses-feature android:name="android.hardware.camera2"/>
 
     <application
         android:allowBackup="true"
@@ -30,8 +33,7 @@
                 android:value="com.example.android.autoeditor.MainActivity" />
         </activity>
 
-        <activity android:name=".EditPicture"
-            />
+        <activity android:name=".EditPicture" />
     </application>
 
 </manifest>
