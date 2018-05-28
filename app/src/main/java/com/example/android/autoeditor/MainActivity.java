@@ -15,28 +15,29 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.support.design.widget.FloatingActionButton;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
+
+import com.github.rubensousa.floatingtoolbar.FloatingToolbar;
 
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String TAKE_A_PICTURE = "Take a Picture";
-    public static final String SELECT_FROM_GALLERY = "Select from Gallery";
     public static final String IMAGE = "image";
     public static final String GALLERY_IMAGE = "galleryImage";
-    public static final String ALERT_DIALOG_TITLE = "Select a Photo";
     public static final int CAMERA_REQUEST_CODE = 0;
     public static final int MEDIA_REQUEST_CODE = 1;
-    private String userSelectedTask;
-    private TextView textSelect;
+
+    private FloatingToolbar floatBar;
+    private FloatingActionButton fab;
     private Intent startEditPictureActivity;
 
     @Override
@@ -46,22 +47,44 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        //button select for the plus button
-        textSelect = findViewById(R.id.select_option_TextView);
-        textSelect.setOnClickListener(new View.OnClickListener() {
+        floatBar  = findViewById(R.id.floatingToolbar);
+        fab = findViewById(R.id.fab);
+        floatBar.attachFab(fab);
+
+        floatBar.setClickListener(new FloatingToolbar.ItemClickListener() {
+            @Override
+            public void onItemClick(MenuItem item) {
+
+                switch (item.getItemId()) {
+
+                    case R.id.add_from_camera:
+                        if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
+                            cameraIntent();
+                        }
+                        break;
+
+                    case R.id.add_from_gallery:
+                        if (checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE)) {
+                            galleryIntent();
+                        }
+                        break;
+
+                }
+            }
 
             @Override
-            public void onClick(View v) {
-                imageSelectionDialog();
+            public void onItemLongClick(MenuItem item) {
+
             }
         });
+
         startEditPictureActivity = new Intent(this, EditPicture.class);
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_main, menu);
+        getMenuInflater().inflate(R.menu.overflow_menu, menu);
         return true;
     }
 
@@ -72,41 +95,8 @@ public class MainActivity extends AppCompatActivity {
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
 
-        //noinspection SimplifiableIfStatement
-        if (id == R.id.action_settings) {
-            return true;
-        }
 
         return super.onOptionsItemSelected(item);
-    }
-
-    private void imageSelectionDialog() {
-
-        //selectable items inside an array
-        final CharSequence[] alertDialogSelections = {TAKE_A_PICTURE, SELECT_FROM_GALLERY};
-
-        //opens the alertbox
-        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-        builder.setTitle(ALERT_DIALOG_TITLE);
-        builder.setItems(alertDialogSelections, new DialogInterface.OnClickListener() {
-            @Override
-            public void onClick(DialogInterface dialog, int selection) {
-                if (alertDialogSelections[selection].equals(TAKE_A_PICTURE)) {
-                    userSelectedTask = TAKE_A_PICTURE;
-                    if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
-                        cameraIntent();
-                    }
-                } else if (alertDialogSelections[selection].equals(SELECT_FROM_GALLERY)) {
-                    userSelectedTask = SELECT_FROM_GALLERY;
-                    if (checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE)) {
-                        galleryIntent();
-                    }
-                }
-            }
-        });
-
-        builder.show();
-
     }
 
     private void cameraIntent() {
@@ -125,6 +115,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         String text;
+        Snackbar snackbar;
 
 
         switch (requestCode) {
@@ -134,7 +125,9 @@ public class MainActivity extends AppCompatActivity {
                     cameraIntent();
                 } else {
                     text = "Camera permissions have been denied";
-                    Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+
+                    snackbar = Snackbar.make(fab, text, Snackbar.LENGTH_SHORT);
+                    floatBar.showSnackBar(snackbar);
                 }
                 break;
 
@@ -143,7 +136,9 @@ public class MainActivity extends AppCompatActivity {
                     galleryIntent();
                 } else {
                     text = "Media permissions have been denied";
-                    Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+
+                    snackbar = Snackbar.make(fab, text, Snackbar.LENGTH_SHORT);
+                    floatBar.showSnackBar(snackbar);
                 }
                 break;
         }
