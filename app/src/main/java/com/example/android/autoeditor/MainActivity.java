@@ -3,9 +3,7 @@ package com.example.android.autoeditor;
 import android.Manifest;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -21,10 +19,8 @@ import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.TextView;
-import android.widget.Toast;
 
-import com.github.rubensousa.floatingtoolbar.FloatingToolbar;
+import com.example.android.autoeditor.floatingToolbar.FloatBar;
 
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -36,7 +32,7 @@ public class MainActivity extends AppCompatActivity {
     public static final int CAMERA_REQUEST_CODE = 0;
     public static final int MEDIA_REQUEST_CODE = 1;
 
-    private FloatingToolbar floatBar;
+    private FloatBar floatBar;
     private FloatingActionButton fab;
     private Intent startEditPictureActivity;
 
@@ -47,53 +43,36 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
-        floatBar  = findViewById(R.id.floatingToolbar);
-        fab = findViewById(R.id.fab);
-        floatBar.attachFab(fab);
-
-        floatBar.setClickListener(new FloatingToolbar.ItemClickListener() {
-            @Override
-            public void onItemClick(MenuItem item) {
-
-                switch (item.getItemId()) {
-
-                    case R.id.add_from_camera:
-                        if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
-                            cameraIntent();
-                        }
-                        break;
-
-                    case R.id.add_from_gallery:
-                        if (checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE)) {
-                            galleryIntent();
-                        }
-                        break;
-
-                }
-            }
-
-            @Override
-            public void onItemLongClick(MenuItem item) {
-
-            }
-        });
+        initFloatBar();
 
         startEditPictureActivity = new Intent(this, EditPicture.class);
     }
 
     @Override
+    public void onBackPressed() {
+        floatBar.hide();
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.overflow_menu, menu);
         return true;
     }
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        // Handle action bar item clicks here. The action bar will
-        // automatically handle clicks on the Home/Up button, so long
-        // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
+
+        switch (id) {
+
+            case R.id.how_app_works:
+                //Todo: interesting page about how app works? maybe Medium article to get more exposure?
+                break;
+
+            case R.id.settings:
+                //Todo: settings activity
+                break;
+        }
 
 
         return super.onOptionsItemSelected(item);
@@ -111,7 +90,6 @@ public class MainActivity extends AppCompatActivity {
         startActivityForResult(Intent.createChooser(intent, "Select File"), MEDIA_REQUEST_CODE);
     }
 
-    //responsible for receiving results for permission request
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         String text;
@@ -144,7 +122,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    //results on dialog pick user
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
@@ -164,7 +141,6 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    //responsible to getting the image taken by user and then sending it to second activity
     private void onCaptureImageResult(Intent intent) {
         Bundle extras = intent.getExtras();
 
@@ -174,8 +150,6 @@ public class MainActivity extends AppCompatActivity {
         startActivity(startEditPictureActivity);
     }
 
-    //grabs image from gallery and sents the intent into another activity
-    @SuppressWarnings("deprecation")
     private void onSelectFromGalleryResult(Intent data) {
 
         try {
@@ -209,5 +183,39 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return true;
+    }
+
+    private void initFloatBar() {
+
+        floatBar  = findViewById(R.id.fabtoolbar);
+        fab = findViewById(R.id.fab);
+        floatBar.attachFab(fab);
+
+        floatBar.setClickListener(new FloatBar.ItemClickListener() {
+            @Override
+            public void onItemClick(MenuItem item) {
+
+                switch (item.getItemId()) {
+
+                    case R.id.add_from_camera:
+                        if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
+                            cameraIntent();
+                        }
+                        break;
+
+                    case R.id.add_from_gallery:
+                        if (checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE)) {
+                            galleryIntent();
+                        }
+                        break;
+
+                }
+            }
+
+            @Override
+            public void onItemLongClick(MenuItem item) {
+
+            }
+        });
     }
 }

@@ -2,14 +2,15 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     tools:context="com.example.android.autoeditor.MainActivity">
-    <item android:id="@+id/bno_bookmark"
+
+    <item android:id="@+id/how_app_works"
         android:visible="true"
-        android:title="@string/help_image"
+        android:title="@string/how_app_works"
         app:showAsAction="never">
     </item>
 
     <item
-        android:id="@+id/add_from_gallery"
+        android:id="@+id/settings"
         android:orderInCategory="100"
         android:title="@string/action_settings"
         app:showAsAction="never" />
