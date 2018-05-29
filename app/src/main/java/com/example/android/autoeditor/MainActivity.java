@@ -13,18 +13,26 @@ import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import java.io.File;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
@@ -33,11 +41,15 @@ public class MainActivity extends AppCompatActivity {
     public static final String IMAGE = "image";
     public static final String GALLERY_IMAGE = "galleryImage";
     public static final String ALERT_DIALOG_TITLE = "Select a Photo";
-    public static final int CAMERA_REQUEST_CODE = 0;
-    public static final int MEDIA_REQUEST_CODE = 1;
+    public static final int CAMERA_REQUEST_CODE = 1;
+    public static final int MEDIA_REQUEST_CODE = 2;
     private String userSelectedTask;
     private TextView textSelect;
     private Intent startEditPictureActivity;
+    String mCurrentPhotoPath;
+    File photoFile;
+    Uri photoURI;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -82,19 +94,21 @@ public class MainActivity extends AppCompatActivity {
 
     private void imageSelectionDialog() {
 
-        //selectable items inside an array
-        final CharSequence[] alertDialogSelections = {TAKE_A_PICTURE, SELECT_FROM_GALLERY};
-
         //opens the alertbox
         AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
         builder.setTitle(ALERT_DIALOG_TITLE);
+
+        //selectable items inside an array
+        final CharSequence[] alertDialogSelections = {TAKE_A_PICTURE, SELECT_FROM_GALLERY};
         builder.setItems(alertDialogSelections, new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int selection) {
                 if (alertDialogSelections[selection].equals(TAKE_A_PICTURE)) {
                     userSelectedTask = TAKE_A_PICTURE;
                     if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
+                        Log.d("Test", "Permissions granted");
                         cameraIntent();
+                        Log.d("Test", "In");
                     }
                 } else if (alertDialogSelections[selection].equals(SELECT_FROM_GALLERY)) {
                     userSelectedTask = SELECT_FROM_GALLERY;
@@ -110,14 +124,32 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void cameraIntent() {
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        startActivityForResult(intent, CAMERA_REQUEST_CODE);
+        Intent pictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        File path = new File(this.getFilesDir(), ".");
+        boolean wasSuccessfull = true;
+        if(!path.exists()) {
+            wasSuccessfull = path.mkdirs();
+        }
+
+        if (!wasSuccessfull){
+            // Directory already exist
+            String text = "Directory already exists";
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+        }
+        File image = new File(path, "image.jpg");
+        Uri imageUri = FileProvider.getUriForFile(this, getApplicationContext().getApplicationContext().getPackageName() + ".provider"
+                , image);
+        pictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+        Log.d("TAG", imageUri.toString());
+        startActivityForResult(pictureIntent, CAMERA_REQUEST_CODE);
+
     }
 
     private void galleryIntent() {
         Intent intent = new Intent();
         intent.setType("image/*");
-        intent.setAction(Intent.ACTION_GET_CONTENT);//
+        intent.setAction(Intent.ACTION_GET_CONTENT);
         startActivityForResult(Intent.createChooser(intent, "Select File"), MEDIA_REQUEST_CODE);
     }
 
@@ -152,31 +184,26 @@ public class MainActivity extends AppCompatActivity {
     //results on dialog pick user
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-        super.onActivityResult(requestCode, resultCode, intent);
+        if (requestCode == CAMERA_REQUEST_CODE) {
+            if (resultCode == Activity.RESULT_OK) {
+                File path = new File(getFilesDir(), ".");
+                boolean wasSuccessfull = true;
+                if(!path.exists()) {
+                    wasSuccessfull = path.mkdirs();
+                }
 
-        if (resultCode == Activity.RESULT_OK) {
-
-            switch (requestCode) {
-
-                case CAMERA_REQUEST_CODE:
-                    onCaptureImageResult(intent);
-                    break;
-
-                case MEDIA_REQUEST_CODE:
-                    onSelectFromGalleryResult(intent);
-                    break;
+                if (!wasSuccessfull){
+                    // Directory already exist
+                    String text = "Directory already exists";
+                    Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+                }
+                File imageFile = new File(path, "image.jpg");
+                startEditPictureActivity.putExtra(IMAGE, imageFile);
+                startActivity(startEditPictureActivity);
             }
         }
-    }
+        super.onActivityResult(requestCode, resultCode, intent);
 
-    //responsible to getting the image taken by user and then sending it to second activity
-    private void onCaptureImageResult(Intent intent) {
-        Bundle extras = intent.getExtras();
-
-        Bitmap imageBitmap = (Bitmap) Objects.requireNonNull(extras).get("data");
-
-        startEditPictureActivity.putExtra(IMAGE, imageBitmap);
-        startActivity(startEditPictureActivity);
     }
 
     //grabs image from gallery and sents the intent into another activity
@@ -214,5 +241,21 @@ public class MainActivity extends AppCompatActivity {
         }
 
         return true;
+    }
+
+    /* Storing the file url as it'll be null after returning from camera app */
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+
+        // save file url in bundle as it will be null on scren orientation changes
+        outState.putParcelable("file_uri", photoURI);
+    }
+
+    @Override
+    protected void onRestoreInstanceState(Bundle savedInstanceState)         {
+        super.onRestoreInstanceState(savedInstanceState);
+// get the file url
+        photoURI = savedInstanceState.getParcelable("file_uri");
     }
 }
