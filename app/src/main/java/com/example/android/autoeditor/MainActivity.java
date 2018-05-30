@@ -1,15 +1,13 @@
 package com.example.android.autoeditor;
 
 import android.Manifest;
+import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
-import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -26,13 +24,12 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.facebook.drawee.backends.pipeline.Fresco;
+
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.Locale;
 import java.util.Objects;
 
 public class MainActivity extends AppCompatActivity {
@@ -43,11 +40,8 @@ public class MainActivity extends AppCompatActivity {
     public static final String ALERT_DIALOG_TITLE = "Select a Photo";
     public static final int CAMERA_REQUEST_CODE = 1;
     public static final int MEDIA_REQUEST_CODE = 2;
-    private String userSelectedTask;
     private TextView textSelect;
     private Intent startEditPictureActivity;
-    String mCurrentPhotoPath;
-    File photoFile;
     Uri photoURI;
 
 
@@ -57,7 +51,7 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
+        Fresco.initialize(this);
         //button select for the plus button
         textSelect = findViewById(R.id.select_option_TextView);
         textSelect.setOnClickListener(new View.OnClickListener() {
@@ -104,14 +98,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(DialogInterface dialog, int selection) {
                 if (alertDialogSelections[selection].equals(TAKE_A_PICTURE)) {
-                    userSelectedTask = TAKE_A_PICTURE;
                     if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
-                        Log.d("Test", "Permissions granted");
                         cameraIntent();
-                        Log.d("Test", "In");
                     }
                 } else if (alertDialogSelections[selection].equals(SELECT_FROM_GALLERY)) {
-                    userSelectedTask = SELECT_FROM_GALLERY;
                     if (checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE)) {
                         galleryIntent();
                     }
@@ -124,33 +114,37 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void cameraIntent() {
-        Intent pictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-
-        File path = new File(this.getFilesDir(), ".");
-        boolean wasSuccessfull = true;
-        if(!path.exists()) {
-            wasSuccessfull = path.mkdirs();
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        // Ensure that there's a camera activity to handle the intent
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            // Create the File where the photo should go
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException ex) {
+                // Error occurred while creating the File
+            }
+            // Continue only if the File was successfully created
+            if (photoFile != null) {
+                photoURI = FileProvider.getUriForFile(this,
+                        "com.example.android.autoeditor",
+                        photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+            }
         }
-
-        if (!wasSuccessfull){
-            // Directory already exist
-            String text = "Directory already exists";
-            Toast.makeText(this, text, Toast.LENGTH_LONG).show();
-        }
-        File image = new File(path, "image.jpg");
-        Uri imageUri = FileProvider.getUriForFile(this, getApplicationContext().getApplicationContext().getPackageName() + ".provider"
-                , image);
-        pictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-        Log.d("TAG", imageUri.toString());
-        startActivityForResult(pictureIntent, CAMERA_REQUEST_CODE);
-
     }
 
     private void galleryIntent() {
-        Intent intent = new Intent();
-        intent.setType("image/*");
-        intent.setAction(Intent.ACTION_GET_CONTENT);
-        startActivityForResult(Intent.createChooser(intent, "Select File"), MEDIA_REQUEST_CODE);
+        Intent getIntent = new Intent(Intent.ACTION_GET_CONTENT);
+        getIntent.setType("image/*");
+
+        Intent pickIntent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        pickIntent.setType("image/*");
+
+        Intent chooserIntent = Intent.createChooser(getIntent, "Select Image");
+        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[] {pickIntent});
+        startActivityForResult(Intent.createChooser(chooserIntent, "Select File"), MEDIA_REQUEST_CODE);
     }
 
     //responsible for receiving results for permission request
@@ -186,51 +180,29 @@ public class MainActivity extends AppCompatActivity {
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
         if (requestCode == CAMERA_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK) {
-                File path = new File(getFilesDir(), ".");
-                boolean wasSuccessfull = true;
-                if(!path.exists()) {
-                    wasSuccessfull = path.mkdirs();
+                try {
+                    startEditPictureActivity.putExtra(IMAGE, Objects.requireNonNull(photoURI).toString());
+                    startActivity(startEditPictureActivity);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-
-                if (!wasSuccessfull){
-                    // Directory already exist
-                    String text = "Directory already exists";
-                    Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+            }
+        }
+        else if (requestCode == MEDIA_REQUEST_CODE) {
+            if (resultCode == Activity.RESULT_OK) {
+                try {
+                    final Uri imageUri = intent.getData();
+                    startEditPictureActivity.putExtra(GALLERY_IMAGE, Objects.requireNonNull(imageUri).toString());
+                    startActivity(startEditPictureActivity);
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
-                File imageFile = new File(path, "image.jpg");
-                startEditPictureActivity.putExtra(IMAGE, imageFile);
-                startActivity(startEditPictureActivity);
             }
         }
         super.onActivityResult(requestCode, resultCode, intent);
 
     }
 
-    //grabs image from gallery and sents the intent into another activity
-    @SuppressWarnings("deprecation")
-    private void onSelectFromGalleryResult(Intent data) {
-
-        try {
-            final Uri imageUri = data.getData();
-            final InputStream imageStream = getContentResolver().openInputStream(Objects.requireNonNull(imageUri));
-            final Bitmap selectedImage = BitmapFactory.decodeStream(imageStream);
-
-            //Write file
-            String filename = "bitmap.png";
-            FileOutputStream stream = this.openFileOutput(filename, Context.MODE_PRIVATE);
-            selectedImage.compress(Bitmap.CompressFormat.PNG, 100, stream);
-
-            //Cleanup
-            stream.close();
-            selectedImage.recycle();
-
-            //Pop intent
-            startEditPictureActivity.putExtra(GALLERY_IMAGE, filename);
-            startActivity(startEditPictureActivity);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     private boolean checkPermission(String permission, int requestCode) {
         int currentAPIVersion = Build.VERSION.SDK_INT;
@@ -243,19 +215,18 @@ public class MainActivity extends AppCompatActivity {
         return true;
     }
 
-    /* Storing the file url as it'll be null after returning from camera app */
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
+    private File createImageFile() throws IOException {
+        // Create an image file name
+        @SuppressLint("SimpleDateFormat") String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 
-        // save file url in bundle as it will be null on scren orientation changes
-        outState.putParcelable("file_uri", photoURI);
+        return File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
+        );
     }
 
-    @Override
-    protected void onRestoreInstanceState(Bundle savedInstanceState)         {
-        super.onRestoreInstanceState(savedInstanceState);
-// get the file url
-        photoURI = savedInstanceState.getParcelable("file_uri");
-    }
+
 }
