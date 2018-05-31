@@ -34,7 +34,11 @@
                 android:value="com.example.android.autoeditor.MainActivity" />
         </activity>
 
-        <activity android:name=".EditPicture" />
+        <activity android:name=".EditPicture">
+        <intent-filter>
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent-filter>
+        </activity>
         <provider
             android:name="android.support.v4.content.FileProvider"
             android:authorities="com.example.android.autoeditor"
