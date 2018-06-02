@@ -1,13 +1,19 @@
 package com.example.android.autoeditor;
 
+import android.annotation.SuppressLint;
+import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
+import android.provider.DocumentsContract;
+import android.provider.MediaStore;
 import android.support.media.ExifInterface;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
@@ -16,8 +22,11 @@ import android.widget.Button;
 import android.widget.ImageView;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Objects;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
@@ -48,6 +57,7 @@ public class EditPicture extends AppCompatActivity {
         }
 
        Bitmap mBitmap = null;
+
         try {
             mBitmap = handleSamplingAndRotationBitmap(this, myUri);
         } catch (IOException e) {
@@ -60,7 +70,7 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onClick(View v) {
-                addToGallery(myUri);
+                onCaptureImageResult(myUri);
             }
         });
     }
@@ -85,15 +95,6 @@ public class EditPicture extends AppCompatActivity {
         Intent i = new Intent(this, MainActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(i); //goes back to main activity
-    }
-
-    void addToGallery(Uri imageUri) {
-
-        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        File f = new File(imageUri.getPath());
-        Uri contentUri = Uri.fromFile(f);
-        mediaScanIntent.setData(contentUri);
-        this.sendBroadcast(mediaScanIntent);
     }
 
     /**
@@ -215,5 +216,134 @@ public class EditPicture extends AppCompatActivity {
         return rotatedImg;
     }
 
+    private void onCaptureImageResult(Uri myUri) {
+        String filePathName;
 
+        Intent intent = getIntent();
+        Bundle extras = getIntent().getExtras();
+
+        if (intent.hasExtra(IMAGE)){
+            filePathName = myUri.getPath();
+        }
+        else {
+            filePathName = getFilePath(EditPicture.this, myUri);
+        }
+
+        File f = new File(Objects.requireNonNull(filePathName));
+        File publicFile;
+        publicFile = copyImageFile(f);
+        Uri finalUri = Uri.fromFile(publicFile);
+        addToGallery(finalUri);
+
+
+    }
+
+    @SuppressLint("Recycle")
+    public static String getFilePath(Context context, Uri uri) throws IllegalArgumentException {
+        String selection = null;
+        String[] selectionArgs = null;
+        // Uri is different in versions after KITKAT (Android 4.4), we need to
+        if (Build.VERSION.SDK_INT >= 19 && DocumentsContract.isDocumentUri(context.getApplicationContext(), uri)) {
+            if (isExternalStorageDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                return Environment.getExternalStorageDirectory() + "/" + split[1];
+            } else if (isDownloadsDocument(uri)) {
+                final String id = DocumentsContract.getDocumentId(uri);
+                uri = ContentUris.withAppendedId(
+                        Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
+            } else if (isMediaDocument(uri)) {
+                final String docId = DocumentsContract.getDocumentId(uri);
+                final String[] split = docId.split(":");
+                final String type = split[0];
+                if ("image".equals(type)) {
+                    uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
+                } else if ("video".equals(type)) {
+                    uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                } else if ("audio".equals(type)) {
+                    uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
+                }
+                selection = "_id=?";
+                selectionArgs = new String[]{
+                        split[1]
+                };
+            }
+        }
+        if ("content".equalsIgnoreCase(uri.getScheme())) {
+            String[] projection = {
+                    MediaStore.Images.Media.DATA
+            };
+            Cursor cursor;
+            cursor = context.getContentResolver()
+                    .query(uri, projection, selection, selectionArgs, null);
+            int column_index = Objects.requireNonNull(cursor).getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+            if (cursor.moveToFirst()) {
+                return cursor.getString(column_index);
+            }
+        } else if ("file".equalsIgnoreCase(uri.getScheme())) {
+            return uri.getPath();
+        }
+        return null;
+    }
+
+    public static boolean isExternalStorageDocument(Uri uri) {
+        return "com.android.externalstorage.documents".equals(uri.getAuthority());
+    }
+
+    public static boolean isDownloadsDocument(Uri uri) {
+        return "com.android.providers.downloads.documents".equals(uri.getAuthority());
+    }
+
+    public static boolean isMediaDocument(Uri uri) {
+        return "com.android.providers.media.documents".equals(uri.getAuthority());
+    }
+
+
+    public File copyImageFile(File fileToCopy) {
+        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        if (!storageDir.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            storageDir.mkdir();
+        }
+
+        File copyFile = new File(storageDir, fileToCopy.getName());
+        if (!copyFile.exists()) {
+            try {
+                //noinspection ResultOfMethodCallIgnored
+                copyFile.createNewFile();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        copyImage(fileToCopy, copyFile);
+        return copyFile;
+    }
+
+    public static void copyImage(File src, File dst){
+        InputStream in;
+        OutputStream out;
+        try {
+            in = new FileInputStream(src);
+            out = new FileOutputStream(dst);
+            byte[] buf = new byte[1024];
+            int len;
+            while ((len = in.read(buf)) > 0) {
+                out.write(buf, 0, len);
+            }
+            in.close();
+            out.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    void addToGallery(Uri imageUri) {
+
+        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        File f = new File(imageUri.getPath());
+        Uri contentUri = Uri.fromFile(f);
+        mediaScanIntent.setData(contentUri);
+        this.sendBroadcast(mediaScanIntent);
+    }
 }
