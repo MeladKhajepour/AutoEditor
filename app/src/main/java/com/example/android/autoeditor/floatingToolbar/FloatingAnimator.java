@@ -14,14 +14,14 @@ abstract class FloatingAnimator implements AppBarLayout.OnOffsetChangedListener 
     public static final int DELAY_MIN_WIDTH = 300;
     public static final int DELAY_MAX_WIDTH = 600;
     public static final int DELAY_MAX = 100;
-    public static final int FAB_MORPH_DURATION = 120;
-    public static final int FAB_UNMORPH_DURATION = 200;
-    public static final int FAB_UNMORPH_DELAY = 220;
-    public static final int CIRCULAR_REVEAL_DURATION = 230; //expanding colour ring
-    public static final int CIRCULAR_UNREVEAL_DURATION = 230; //opposite^
+    public static final int FAB_MORPH_DURATION = 80;
+    public static final int FAB_UNMORPH_DURATION = 130;
+    public static final int FAB_UNMORPH_DELAY = 180;
+    public static final int CIRCULAR_REVEAL_DURATION = 180; //expanding colour ring
+    public static final int CIRCULAR_UNREVEAL_DURATION = 180; //opposite^
     public static final int CIRCULAR_REVEAL_DELAY = 0;
     public static final int CIRCULAR_UNREVEAL_DELAY = 0;
-    public static final int TOOLBAR_UNREVEAL_DELAY = 175; //toolbar sliding off screen delay
+    public static final int TOOLBAR_UNREVEAL_DELAY = 120; //toolbar sliding off screen delay
     public static final int MENU_ANIMATION_DELAY = 100;
     public static final int MENU_ANIMATION_DURATION = 250;
 

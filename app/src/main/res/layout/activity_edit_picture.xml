@@ -13,4 +13,5 @@
         android:layout_centerHorizontal="true"
         android:id="@+id/selected_picture_image_view"
         android:contentDescription="@string/edit_picture_Image" />
+
 </android.support.constraint.ConstraintLayout>
