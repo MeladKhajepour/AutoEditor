@@ -2,16 +2,12 @@ package com.example.android.autoeditor;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -28,15 +24,8 @@ import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.facebook.drawee.backends.pipeline.Fresco;
-
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -65,7 +54,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        Fresco.initialize(this);
         //button select for the plus button
         textSelect = findViewById(R.id.select_option_TextView);
         textSelect.setOnClickListener(new View.OnClickListener() {
@@ -99,7 +87,7 @@ public class MainActivity extends AppCompatActivity {
 
         return super.onOptionsItemSelected(item);
     }
-
+    
     private void imageSelectionDialog() {
 
         //opens the alertbox
@@ -128,12 +116,19 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void cameraIntent() {
+    private void cameraIntent(){
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        // Ensure that there's a camera activity to handle the intent
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+        File photoFile = null;
+        try {
+            photoFile = createImageFile();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
+        photoURI = FileProvider.getUriForFile(MainActivity.this, BuildConfig.APPLICATION_ID, Objects.requireNonNull(photoFile));
+        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+        takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+
     }
 
     private void galleryIntent() {
@@ -220,12 +215,6 @@ public class MainActivity extends AppCompatActivity {
             if (resultCode == Activity.RESULT_OK) {
                 try {
                     // Create the File where the photo should go
-                    File photoFile = createImageFile();
-                    Bitmap photo = (Bitmap) Objects.requireNonNull(intent.getExtras()).get("data");
-                    OutputStream os = new BufferedOutputStream(new FileOutputStream(photoFile));
-                    Objects.requireNonNull(photo).compress(Bitmap.CompressFormat.JPEG, 100, os);
-                    os.close();
-                    photoURI = Uri.fromFile(photoFile);
                     startEditPictureActivity.putExtra(IMAGE, photoURI.toString());
                     startActivity(startEditPictureActivity);
                 } catch (Exception e) {
@@ -269,18 +258,20 @@ public class MainActivity extends AppCompatActivity {
         }
         return true;
     }
+
     private File createImageFile() throws IOException {
         // Create an image file name
         @SuppressLint("SimpleDateFormat") String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         return File.createTempFile(
                 imageFileName,  /* prefix */
                 ".jpg",         /* suffix */
                 storageDir      /* directory */
         );
     }
+
+
 
 
 }

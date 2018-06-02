@@ -28,10 +28,6 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value="com.example.android.autoeditor.MainActivity" />
         </activity>
 
         <activity android:name=".EditPicture">
@@ -41,7 +37,7 @@
         </activity>
         <provider
             android:name="android.support.v4.content.FileProvider"
-            android:authorities="com.example.android.autoeditor"
+            android:authorities="${applicationId}"
             android:exported="false"
             android:grantUriPermissions="true">
             <meta-data
