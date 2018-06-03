@@ -5,7 +5,6 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
-import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -23,6 +22,7 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.widget.Toast;
 
 import com.example.android.autoeditor.floatingToolbar.FloatBar;
 
@@ -39,11 +39,9 @@ import java.util.Objects;
 public class MainActivity extends AppCompatActivity {
     public static final String IMAGE = "image";
     public static final String GALLERY_IMAGE = "galleryImage";
-    public static final String ALERT_DIALOG_TITLE = "Select a Photo";
     public static final int CAMERA_REQUEST_CODE = 1;
     public static final int MEDIA_REQUEST_CODE = 2;
     public static final int REQUEST_ID_MULTIPLE_PERMISSIONS = 1;
-    private TextView textSelect;
 
     private FloatBar floatBar;
     private FloatingActionButton fab;
@@ -120,10 +118,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String permissions[], @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
+        //This function is useless it just checks if all perms are granted or not
         switch (requestCode) {
-            case REQUEST_ID_MULTIPLE_PERMISSIONS: {
+            case REQUEST_ID_MULTIPLE_PERMISSIONS:
 
                 Map<String, Integer> perms = new HashMap<>();
                 // Initialize the map with both permissions
@@ -137,8 +135,10 @@ public class MainActivity extends AppCompatActivity {
                     // Check for both permissions
                     if (perms.get(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
                             && perms.get(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                            && perms.get(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED){
-                        Toast.makeText(this,"Permissions have been denied",Toast.LENGTH_LONG).show();
+                            && perms.get(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+
+                        Toast.makeText(this, "Permissions have been denied", Toast.LENGTH_LONG).show();
+
                     } else {
                         //permission is denied (this is the first time, when "never ask again" is not checked) so ask again explaining the usage of permission
 //                        // shouldShowRequestPermissionRationale will return true
@@ -167,11 +167,14 @@ public class MainActivity extends AppCompatActivity {
                             //                            //proceed with logic by disabling the related features or quit the app.
                         }
                     }
+                }
+
+        }
         String text;
         Snackbar snackbar;
 
 
-                switch (requestCode) {
+//                switch (requestCode) {
 //
 //            case CAMERA_REQUEST_CODE:
 //                if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -196,8 +199,6 @@ public class MainActivity extends AppCompatActivity {
 //                break;
 //        }
         }
-
-    }
 
     private void showDialogOK(String message, DialogInterface.OnClickListener okListener) {
         new AlertDialog.Builder(this)
@@ -234,16 +235,19 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         super.onActivityResult(requestCode, resultCode, intent);
-
     }
 
-    private  boolean checkAndRequestPermissions() {
-        int permissionCamera = ContextCompat.checkSelfPermission(this,
-                Manifest.permission.CAMERA);
+    private  boolean checkAndRequestPermissions() {//todo returns false on first go even when given perms
+
+        //Get ints that shows if permission is granted or not and make a list of permissions Strings
+        int permissionCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA); //TODO -- DEBUG FROM BEGINING
         int writeExternalPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
         int readExternalPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
         List<String> listPermissionsNeeded = new ArrayList<>();
-        if (permissionCamera != PackageManager.PERMISSION_GRANTED) {
+
+        //Change these to show a dialog box that explains what each perm is for, then ask for it
+        //without adding the perms to a list and asking all at once
+        if (permissionCamera != PackageManager.PERMISSION_GRANTED) {//granted perm int = 0
             listPermissionsNeeded.add(Manifest.permission.CAMERA);
         }
         if (writeExternalPermission != PackageManager.PERMISSION_GRANTED) {
@@ -252,6 +256,7 @@ public class MainActivity extends AppCompatActivity {
         if (readExternalPermission != PackageManager.PERMISSION_GRANTED) {
             listPermissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
         }
+
         if (!listPermissionsNeeded.isEmpty()) {
             ActivityCompat.requestPermissions(this, listPermissionsNeeded.toArray(new String[listPermissionsNeeded.size()]),REQUEST_ID_MULTIPLE_PERMISSIONS);
             return false;
@@ -284,13 +289,13 @@ public class MainActivity extends AppCompatActivity {
                 switch (item.getItemId()) {
 
                     case R.id.add_from_camera:
-                        if (checkPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE)) {
+                        if (checkAndRequestPermissions()) {
                             cameraIntent();
                         }
                         break;
 
                     case R.id.add_from_gallery:
-                        if (checkPermission(Manifest.permission.READ_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE)) {
+                        if (checkAndRequestPermissions()) {
                             galleryIntent();
                         }
                         break;
