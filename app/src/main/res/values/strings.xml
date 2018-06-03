@@ -6,4 +6,11 @@
     <string name="select_from_camera">Take a picture</string>
     <string name="edit_picture_Image">Selected Pictures to Edit</string>
     <string name="save">Save</string>
+    <string name="title_activity_onboarding">Onboarding</string>
+    <string name="page_1_header">Page 1 Header</string>
+    <string name="page_1_desc">Page 1 Desc</string>
+    <string name="page_2_header">Page 2 Header</string>
+    <string name="page_2_desc">Page 2 Desc</string>
+    <string name="page_3_header">First we need to ask for a couple permissions</string>
+    <string name="page_3_desc">This app requires filesystem access to open images and save them, as well as camera access to capture new images.</string>
 </resources>
