@@ -119,7 +119,6 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-        //This function is useless it just checks if all perms are granted or not
         switch (requestCode) {
             case REQUEST_ID_MULTIPLE_PERMISSIONS:
 
