@@ -18,6 +18,7 @@ import android.support.v4.content.FileProvider;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
@@ -25,33 +26,51 @@ import android.view.MenuItem;
 import android.widget.Toast;
 
 import com.example.android.autoeditor.floatingToolbar.FloatBar;
+import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static com.example.android.autoeditor.utils.Utils.PERMISSIONS_REQUEST_ID;
+
 public class MainActivity extends AppCompatActivity {
     public static final String IMAGE = "image";
     public static final String GALLERY_IMAGE = "galleryImage";
     public static final int CAMERA_REQUEST_CODE = 1;
     public static final int MEDIA_REQUEST_CODE = 2;
-    public static final int REQUEST_ID_MULTIPLE_PERMISSIONS = 1;
+    public static final String PREF_USER_FIRST_TIME = "user_first_time";
 
+    private static final String TAG = MainActivity.class.getSimpleName();
+
+    boolean isUserFirstTime;
     private FloatBar floatBar;
     private FloatingActionButton fab;
     private Intent startEditPictureActivity;
-    Uri photoURI;
-
+    private Uri photoURI;
+    private Activity that;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        isUserFirstTime = Boolean.valueOf(Utils.readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
+        that = this;
+
+        if (isUserFirstTime) {
+            Intent introIntent = new Intent(MainActivity.this, Onboarding.class);
+            introIntent.putExtra(PREF_USER_FIRST_TIME, isUserFirstTime);
+
+            startActivity(introIntent);
+        }
+
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
@@ -118,97 +137,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
-        switch (requestCode) {
-            case REQUEST_ID_MULTIPLE_PERMISSIONS:
-
-                Map<String, Integer> perms = new HashMap<>();
-                // Initialize the map with both permissions
-                perms.put(Manifest.permission.CAMERA, PackageManager.PERMISSION_GRANTED);
-                perms.put(Manifest.permission.WRITE_EXTERNAL_STORAGE, PackageManager.PERMISSION_GRANTED);
-                perms.put(Manifest.permission.READ_EXTERNAL_STORAGE, PackageManager.PERMISSION_GRANTED);
-                // Fill with actual results from user
-                if (grantResults.length > 0) {
-                    for (int i = 0; i < permissions.length; i++)
-                        perms.put(permissions[i], grantResults[i]);
-                    // Check for both permissions
-                    if (perms.get(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
-                            && perms.get(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                            && perms.get(Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-
-                        Toast.makeText(this, "Permissions have been denied", Toast.LENGTH_LONG).show();
-
-                    } else {
-                        //permission is denied (this is the first time, when "never ask again" is not checked) so ask again explaining the usage of permission
-//                        // shouldShowRequestPermissionRationale will return true
-                        //show the dialog or snackbar saying its necessary and try again otherwise proceed with setup.
-                        if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.SEND_SMS) || ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.ACCESS_FINE_LOCATION)) {
-                            showDialogOK("Camera, read and write permission are required for this app",
-                                    new DialogInterface.OnClickListener() {
-                                        @Override
-                                        public void onClick(DialogInterface dialog, int which) {
-                                            switch (which) {
-                                                case DialogInterface.BUTTON_POSITIVE:
-                                                    checkAndRequestPermissions();
-                                                    break;
-                                                case DialogInterface.BUTTON_NEGATIVE:
-                                                    // proceed with logic by disabling the related features or quit the app.
-                                                    break;
-                                            }
-                                        }
-                                    });
-                        }
-                        //permission is denied (and never ask again is  checked)
-                        //shouldShowRequestPermissionRationale will return false
-                        else {
-                            Toast.makeText(this, "Go to Auto Editor's permissions to enable", Toast.LENGTH_LONG)
-                                    .show();
-                            //                            //proceed with logic by disabling the related features or quit the app.
-                        }
-                    }
-                }
-
-        }
-        String text;
-        Snackbar snackbar;
-
-
-//                switch (requestCode) {
-//
-//            case CAMERA_REQUEST_CODE:
-//                if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-//                    cameraIntent();
-//                } else {
-//                    text = "Camera permissions have been denied";
-//
-//                    snackbar = Snackbar.make(fab, text, Snackbar.LENGTH_SHORT);
-//                    floatBar.showSnackBar(snackbar);
-//                }
-//                break;
-//
-//            case MEDIA_REQUEST_CODE:
-//                if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-//                    galleryIntent();
-//                } else {
-//                    text = "Media permissions have been denied";
-//
-//                    snackbar = Snackbar.make(fab, text, Snackbar.LENGTH_SHORT);
-//                    floatBar.showSnackBar(snackbar);
-//                }
-//                break;
-//        }
-        }
-
-    private void showDialogOK(String message, DialogInterface.OnClickListener okListener) {
-        new AlertDialog.Builder(this)
-                .setMessage(message)
-                .setPositiveButton("OK", okListener)
-                .setNegativeButton("Cancel", okListener)
-                .create()
-                .show();
-    }
-
-    @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
         Log.d("in", "It is: " + Activity.RESULT_OK);
         if (requestCode == CAMERA_REQUEST_CODE) {
@@ -236,31 +164,68 @@ public class MainActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, intent);
     }
 
-    private  boolean checkAndRequestPermissions() {//todo returns false on first go even when given perms
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
 
-        //Get ints that shows if permission is granted or not and make a list of permissions Strings
-        int permissionCamera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA); //TODO -- DEBUG FROM BEGINING
-        int writeExternalPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE);
-        int readExternalPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE);
-        List<String> listPermissionsNeeded = new ArrayList<>();
+        for (int i = 0, len = permissions.length; i < len; i++) {
+            final String permission = permissions[i];
+            if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+                // user rejected the permission
+                boolean showRationale = ActivityCompat.shouldShowRequestPermissionRationale(that, permission);
+                if (! showRationale) {
+                    // user also CHECKED "never ask again"
+                    // you can either enable some fall back,
+                    // disable features of your app
+                    // or open another dialog explaining
+                    // again the permission and directing to
+                    // the app setting
+                    if(Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) {
+                        Snackbar.make(fab, "File access required", Snackbar.LENGTH_LONG)
+                                .show();
+                    } else if (Manifest.permission.CAMERA.equals(permission)) {
+                        Snackbar.make(fab, "Camera access required", Snackbar.LENGTH_LONG)
+                                .show();
+                    }
+                } else if (Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) {
 
-        //Change these to show a dialog box that explains what each perm is for, then ask for it
-        //without adding the perms to a list and asking all at once
-        if (permissionCamera != PackageManager.PERMISSION_GRANTED) {//granted perm int = 0
-            listPermissionsNeeded.add(Manifest.permission.CAMERA);
+                    new AlertDialog.Builder(this).setTitle("File Access Denied")
+                            .setMessage("File access is required for loading images to the app and saving the edited images")
+                            .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Utils.requestPermission(that, Arrays.asList(permission));
+                                }
+                            })
+                            .setNegativeButton("Later", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Snackbar.make(fab, "File access required", Snackbar.LENGTH_LONG)
+                                            .show();
+                                }
+                            })
+                            .create()
+                            .show();
+                } else if (Manifest.permission.CAMERA.equals(permission)) {
+                    new AlertDialog.Builder(this).setTitle("Camera Access Denied")
+                            .setMessage("Camera access is required for taking pictures")
+                            .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Utils.requestPermission(that, Arrays.asList(permission));
+                                }
+                            })
+                            .setNegativeButton("Later", new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    Snackbar.make(fab, "Camera access required", Snackbar.LENGTH_LONG)
+                                            .show();
+                                }
+                            })
+                            .create()
+                            .show();
+                }
+            }
         }
-        if (writeExternalPermission != PackageManager.PERMISSION_GRANTED) {
-            listPermissionsNeeded.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-        }
-        if (readExternalPermission != PackageManager.PERMISSION_GRANTED) {
-            listPermissionsNeeded.add(Manifest.permission.READ_EXTERNAL_STORAGE);
-        }
-
-        if (!listPermissionsNeeded.isEmpty()) {
-            ActivityCompat.requestPermissions(this, listPermissionsNeeded.toArray(new String[listPermissionsNeeded.size()]),REQUEST_ID_MULTIPLE_PERMISSIONS);
-            return false;
-        }
-        return true;
     }
 
     private File createImageFile() throws IOException {
@@ -288,14 +253,18 @@ public class MainActivity extends AppCompatActivity {
                 switch (item.getItemId()) {
 
                     case R.id.add_from_camera:
-                        if (checkAndRequestPermissions()) {
+                        if (ContextCompat.checkSelfPermission(that, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
                             cameraIntent();
+                        } else {
+                            ActivityCompat.requestPermissions(that, new String[] {Manifest.permission.CAMERA}, PERMISSIONS_REQUEST_ID);
                         }
                         break;
 
                     case R.id.add_from_gallery:
-                        if (checkAndRequestPermissions()) {
+                        if (ContextCompat.checkSelfPermission(that, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
                             galleryIntent();
+                        } else {
+                            ActivityCompat.requestPermissions(that, new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST_ID);
                         }
                         break;
 
