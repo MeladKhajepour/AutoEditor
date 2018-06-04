@@ -7,7 +7,12 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
@@ -71,22 +76,40 @@ public class Utils {
         editor.apply();
     }
 
-    public static void darkenStatusBar(Activity activity, int color) {
+    public static void darkenStatusBar(Activity activity, int baseColour) {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
 
-            activity.getWindow().setStatusBarColor(
-                    darkenColor(color));
+            float[] hsv = new float[3];
+            Color.colorToHSV(baseColour, hsv);
+            hsv[2] *= 0.8f;
+            activity.getWindow().setStatusBarColor(Color.HSVToColor(hsv));
         }
 
     }
 
-    // Code to darken the color supplied (mostly color of toolbar)
-    private static int darkenColor(int color) {
-        float[] hsv = new float[3];
-        Color.colorToHSV(color, hsv);
-        hsv[2] *= 0.8f;
-        return Color.HSVToColor(hsv);
-    }
+    public static Bitmap setContrast(Bitmap bmp, float value){
 
+        value = value < 0 ? value / 2 : value;
+        float contrast = (float) Math.pow((100 + value) / 100, 2);
+        float brightness = 127.5f * (1 - contrast);
+
+        ColorMatrix cm = new ColorMatrix(new float[]
+                {
+                        contrast, 0, 0, 0, brightness,
+                        0, contrast, 0, 0, brightness,
+                        0, 0, contrast, 0, brightness,
+                        0, 0, 0, 1, 0
+                });
+
+        Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
+
+        Canvas canvas = new Canvas(ret);
+
+        Paint paint = new Paint();
+        paint.setColorFilter(new ColorMatrixColorFilter(cm));
+        canvas.drawBitmap(bmp, 0, 0, paint);
+
+        return ret;
+    }
 }

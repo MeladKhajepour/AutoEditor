@@ -7,7 +7,11 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
 import android.graphics.Matrix;
+import android.graphics.Paint;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -20,6 +24,8 @@ import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.SeekBar;
+import android.widget.TextView;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -31,6 +37,7 @@ import java.util.Objects;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
+import static com.example.android.autoeditor.utils.Utils.setContrast;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
@@ -51,12 +58,11 @@ public class EditPicture extends AppCompatActivity {
 
         if (intent.hasExtra(IMAGE)) {
             myUri = Uri.parse(Objects.requireNonNull(extras).getString(IMAGE));
-        }
-        else{
+        } else {
             myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
         }
 
-       Bitmap mBitmap = null;
+        Bitmap mBitmap = null;
 
         try {
             mBitmap = handleSamplingAndRotationBitmap(this, myUri);
@@ -73,7 +79,38 @@ public class EditPicture extends AppCompatActivity {
                 onCaptureImageResult(myUri);
             }
         });
+
+
+        //Start of test sliders etc
+
+        SeekBar seekbar;
+        final TextView textView;
+
+        textView = findViewById(R.id.label);
+        seekbar = findViewById(R.id.seekbar);
+        seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
+                result.setImageBitmap(setContrast(
+                                BitmapFactory.decodeFile(myUri.getPath()),
+                                (progress - 100f) / 3));
+                textView.setText("Contrast: " + (progress - 100f));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        seekbar.setMax(200);
+        seekbar.setProgress(100);
     }
+
+
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -220,7 +257,6 @@ public class EditPicture extends AppCompatActivity {
         String filePathName;
 
         Intent intent = getIntent();
-        Bundle extras = getIntent().getExtras();
 
         if (intent.hasExtra(IMAGE)){
             filePathName = myUri.getPath();

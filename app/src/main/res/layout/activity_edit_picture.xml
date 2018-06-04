@@ -25,5 +25,17 @@
         android:theme="@style/Save.Button"
         fresco:layout_constraintBottom_toBottomOf="parent"
         fresco:layout_constraintEnd_toEndOf="parent" />
+
+    <TextView
+        android:id="@+id/label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
+
+    <SeekBar
+        android:id="@+id/seekbar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
   
 </android.support.constraint.ConstraintLayout>
