@@ -1,10 +1,8 @@
 package com.example.android.autoeditor;
 
 import android.annotation.SuppressLint;
-import android.content.ContentUris;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
@@ -12,8 +10,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
-import android.provider.DocumentsContract;
-import android.provider.MediaStore;
 import android.support.media.ExifInterface;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
@@ -24,11 +20,11 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Objects;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
@@ -41,7 +37,11 @@ public class EditPicture extends AppCompatActivity {
     Button saveButton;
     ImageView result;
     Uri myUri;
-
+    SeekBar contrastSeekbar;
+    SeekBar exposureSeekbar;
+    TextView contrastTextView;
+    TextView exposureTextView;
+    Bitmap mBitmap;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -50,6 +50,25 @@ public class EditPicture extends AppCompatActivity {
 
         //tries the receive the intent on photo taken
         result = findViewById(R.id.selected_picture_image_view);
+
+        //Start of test sliders etc
+        contrastTextView = findViewById(R.id.contrast_label);
+        contrastSeekbar = findViewById(R.id.contrast_seekbar);
+        exposureSeekbar = findViewById(R.id.exposure_seekbar);
+        exposureTextView = findViewById(R.id.exposure_label);
+
+        contrastSeekbar.setMax(200);
+        exposureSeekbar.setMax(200);
+        contrastSeekbar.setProgress(100);
+        exposureSeekbar.setProgress(100);
+
+        saveButton = findViewById(R.id.save_button);
+
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
 
         Intent intent = getIntent();
         Bundle extras = getIntent().getExtras();
@@ -60,7 +79,6 @@ public class EditPicture extends AppCompatActivity {
             myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
         }
 
-        Bitmap mBitmap = null;
 
         try {
             mBitmap = handleSamplingAndRotationBitmap(this, myUri);
@@ -69,34 +87,18 @@ public class EditPicture extends AppCompatActivity {
         }
         result.setImageBitmap(mBitmap);
 
-        saveButton = findViewById(R.id.save_button);
-        saveButton.setOnClickListener(new View.OnClickListener() {
+    }
 
-            @Override
-            public void onClick(View v) {
-                onCaptureImageResult(myUri);
-            }
-        });
-
-
-        //Start of test sliders etc
-
-        SeekBar contrastSeekbar;
-        SeekBar exposureSeekbar;
-        final TextView contrastTextView;
-        final TextView exposureTextView;
-
-        contrastTextView = findViewById(R.id.contrast_label);
-        exposureTextView = findViewById(R.id.exposure_label);
-        contrastSeekbar = findViewById(R.id.contrast_seekbar);
-        exposureSeekbar = findViewById(R.id.exposure_seekbar);
+    @Override
+    protected void onResume() {
+        super.onResume();
 
         contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 result.setImageBitmap(setFilter(
-                                BitmapFactory.decodeFile(myUri.getPath()),
-                                progress - 100,
+                        BitmapFactory.decodeFile(myUri.getPath()),
+                        progress - 100,
                         CONTRAST_FILTER));
                 contrastTextView.setText("contrast: " + (progress));
             }
@@ -130,11 +132,14 @@ public class EditPicture extends AppCompatActivity {
             }
         });
 
-        contrastSeekbar.setMax(200);
-        contrastSeekbar.setProgress(100);
+        saveButton.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View v) {
+                saveImage();
+            }
+        });
     }
-
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -277,125 +282,51 @@ public class EditPicture extends AppCompatActivity {
         return rotatedImg;
     }
 
-    private void onCaptureImageResult(Uri myUri) {
-        String filePathName;
-
-        Intent intent = getIntent();
-
-        if (intent.hasExtra(IMAGE)){
-            filePathName = myUri.getPath();
-        }
-        else {
-            filePathName = getFilePath(EditPicture.this, myUri);
-        }
-
-        File f = new File(Objects.requireNonNull(filePathName));
-        File publicFile;
-        publicFile = copyImageFile(f);
-        Uri finalUri = Uri.fromFile(publicFile);
-        addToGallery(finalUri);
-
-
-    }
-
-    @SuppressLint("Recycle")
-    public static String getFilePath(Context context, Uri uri) throws IllegalArgumentException {
-        String selection = null;
-        String[] selectionArgs = null;
-        // Uri is different in versions after KITKAT (Android 4.4), we need to
-        if (Build.VERSION.SDK_INT >= 19 && DocumentsContract.isDocumentUri(context.getApplicationContext(), uri)) {
-            if (isExternalStorageDocument(uri)) {
-                final String docId = DocumentsContract.getDocumentId(uri);
-                final String[] split = docId.split(":");
-                return Environment.getExternalStorageDirectory() + "/" + split[1];
-            } else if (isDownloadsDocument(uri)) {
-                final String id = DocumentsContract.getDocumentId(uri);
-                uri = ContentUris.withAppendedId(
-                        Uri.parse("content://downloads/public_downloads"), Long.valueOf(id));
-            } else if (isMediaDocument(uri)) {
-                final String docId = DocumentsContract.getDocumentId(uri);
-                final String[] split = docId.split(":");
-                final String type = split[0];
-                if ("image".equals(type)) {
-                    uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI;
-                } else if ("video".equals(type)) {
-                    uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                } else if ("audio".equals(type)) {
-                    uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI;
-                }
-                selection = "_id=?";
-                selectionArgs = new String[]{
-                        split[1]
-                };
-            }
-        }
-        if ("content".equalsIgnoreCase(uri.getScheme())) {
-            String[] projection = {
-                    MediaStore.Images.Media.DATA
-            };
-            Cursor cursor;
-            cursor = context.getContentResolver()
-                    .query(uri, projection, selection, selectionArgs, null);
-            int column_index = Objects.requireNonNull(cursor).getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
-            if (cursor.moveToFirst()) {
-                return cursor.getString(column_index);
-            }
-        } else if ("file".equalsIgnoreCase(uri.getScheme())) {
-            return uri.getPath();
-        }
-        return null;
-    }
-
-    public static boolean isExternalStorageDocument(Uri uri) {
-        return "com.android.externalstorage.documents".equals(uri.getAuthority());
-    }
-
-    public static boolean isDownloadsDocument(Uri uri) {
-        return "com.android.providers.downloads.documents".equals(uri.getAuthority());
-    }
-
-    public static boolean isMediaDocument(Uri uri) {
-        return "com.android.providers.media.documents".equals(uri.getAuthority());
-    }
-
-
-    public File copyImageFile(File fileToCopy) {
+    private File createImageFile() throws IOException {
+        // Create an image file name
+        @SuppressLint("SimpleDateFormat") String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+
         if (!storageDir.exists()) {
             //noinspection ResultOfMethodCallIgnored
             storageDir.mkdir();
         }
 
-        File copyFile = new File(storageDir, fileToCopy.getName());
-        if (!copyFile.exists()) {
+        return File.createTempFile(
+                imageFileName,  /* prefix */
+                ".jpg",         /* suffix */
+                storageDir      /* directory */
+        );
+    }
+    private void saveImage(){
+        File imageToSaveFile = null;
+
+        try {
+            imageToSaveFile = createImageFile();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        FileOutputStream out = null;
+        try {
+            out = new FileOutputStream(Objects.requireNonNull(imageToSaveFile));
+            mBitmap.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
+            // PNG is a lossless format, the compression factor (100) is ignored
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
             try {
-                //noinspection ResultOfMethodCallIgnored
-                copyFile.createNewFile();
+                if (out != null) {
+                    out.close();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-        copyImage(fileToCopy, copyFile);
-        return copyFile;
-    }
-
-    public static void copyImage(File src, File dst){
-        InputStream in;
-        OutputStream out;
-        try {
-            in = new FileInputStream(src);
-            out = new FileOutputStream(dst);
-            byte[] buf = new byte[1024];
-            int len;
-            while ((len = in.read(buf)) > 0) {
-                out.write(buf, 0, len);
-            }
-            in.close();
-            out.close();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        Uri finalUri = Uri.fromFile(imageToSaveFile);
+        addToGallery(finalUri);
     }
 
     void addToGallery(Uri imageUri) {
