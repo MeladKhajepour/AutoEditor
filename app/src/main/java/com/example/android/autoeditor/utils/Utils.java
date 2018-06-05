@@ -2,9 +2,7 @@ package com.example.android.autoeditor.utils;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.AlertDialog;
 import android.content.Context;
-import android.content.DialogInterface;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -26,6 +24,9 @@ import java.util.List;
 public class Utils {
 
     private static final String PREFERENCES_FILE = "PREFS";
+    public static final int CONTRAST_FILTER = 0;
+    public static final int EXPOSURE_FILTER = 1;
+
     public static final int PERMISSIONS_REQUEST_ID = 111;
 
     public static void requestMissingPermissions(Activity ctx) {
@@ -88,19 +89,40 @@ public class Utils {
 
     }
 
-    public static Bitmap setContrast(Bitmap bmp, float value){
+    public static Bitmap setFilter(Bitmap bmp, float value, int filter){
 
-        value = value < 0 ? value / 2 : value;
-        float contrast = (float) Math.pow((100 + value) / 100, 2);
-        float brightness = 127.5f * (1 - contrast);
+        ColorMatrix cm = new ColorMatrix();
 
-        ColorMatrix cm = new ColorMatrix(new float[]
-                {
-                        contrast, 0, 0, 0, brightness,
-                        0, contrast, 0, 0, brightness,
-                        0, 0, contrast, 0, brightness,
-                        0, 0, 0, 1, 0
-                });
+        switch (filter) {
+            case CONTRAST_FILTER:
+                value = (value - 100f) / 3f;
+                value = value < 0 ? value / 2 : value;
+                float contrast = (float) Math.pow((100 + value) / 100, 2);
+                float brightness = 127.5f * (1 - contrast);
+
+                cm.set(new float[]
+                        {
+                                contrast, 0, 0, 0, brightness,
+                                0, contrast, 0, 0, brightness,
+                                0, 0, contrast, 0, brightness,
+                                0, 0, 0, 1, 0
+                        });
+
+                break;
+
+            case EXPOSURE_FILTER:
+
+                value = (float) Math.pow(1/2f, -1*value/100*3);
+                cm.set(new float[]
+                        {
+                                value, 0, 0, 0, 0,
+                                0, value, 0, 0, 0,
+                                0, 0, value, 0, 0,
+                                0, 0, 0, 1, 0
+                        });
+                break;
+
+        }
 
         Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
 
