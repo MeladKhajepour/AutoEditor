@@ -19,6 +19,8 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import com.example.android.autoeditor.utils.Utils;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -31,6 +33,7 @@ import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
 import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
 import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
+import static com.example.android.autoeditor.utils.Utils.applyFilters;
 import static com.example.android.autoeditor.utils.Utils.setFilter;
 
 public class EditPicture extends AppCompatActivity {
@@ -94,12 +97,12 @@ public class EditPicture extends AppCompatActivity {
         super.onResume();
 
         contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            Bitmap res;
+
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                result.setImageBitmap(setFilter(
-                        BitmapFactory.decodeFile(myUri.getPath()),
-                        progress - 100,
-                        CONTRAST_FILTER));
+                res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER);
+                result.setImageBitmap(res);
                 contrastTextView.setText("contrast: " + (progress));
             }
 
@@ -113,12 +116,12 @@ public class EditPicture extends AppCompatActivity {
         });
 
         exposureSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            Bitmap res;
+
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                result.setImageBitmap(setFilter(
-                        BitmapFactory.decodeFile(myUri.getPath()),
-                        progress - 100,
-                        EXPOSURE_FILTER));
+                res = setFilter(mBitmap, progress - 100, EXPOSURE_FILTER);
+                result.setImageBitmap(res);
                 exposureTextView.setText("exposure: " + (progress/100f*3f));
             }
 
@@ -128,7 +131,6 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
-
             }
         });
 
