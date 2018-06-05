@@ -13,4 +13,5 @@
     <string name="page_2_desc">Page 2 Desc</string>
     <string name="page_3_header">First we need to ask for a couple permissions</string>
     <string name="page_3_desc">This app requires filesystem access to open images and save them, as well as camera access to capture new images.</string>
+    <string name="contrast">Contrast:</string>
 </resources>
