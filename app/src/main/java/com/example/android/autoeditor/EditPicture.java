@@ -88,7 +88,7 @@ public class EditPicture extends AppCompatActivity {
         result.setImageBitmap(mBitmap);
 
     }
-
+  
     @Override
     protected void onResume() {
         super.onResume();
