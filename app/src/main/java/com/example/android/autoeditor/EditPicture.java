@@ -29,16 +29,19 @@ import java.util.Objects;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
-import static com.example.android.autoeditor.utils.Utils.setContrast;
+import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
+import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
+import static com.example.android.autoeditor.utils.Utils.setFilter;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
     ImageView result;
     Uri myUri;
-    SeekBar seekbar;
-    TextView textView;
+    SeekBar contrastSeekbar;
+    SeekBar exposureSeekbar;
+    TextView contrastTextView;
+    TextView exposureTextView;
     Bitmap mBitmap;
-
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -49,8 +52,15 @@ public class EditPicture extends AppCompatActivity {
         result = findViewById(R.id.selected_picture_image_view);
 
         //Start of test sliders etc
-        textView = findViewById(R.id.label);
-        seekbar = findViewById(R.id.seekbar);
+        contrastTextView = findViewById(R.id.contrast_label);
+        contrastSeekbar = findViewById(R.id.contrast_seekbar);
+        exposureSeekbar = findViewById(R.id.exposure_seekbar);
+        exposureTextView = findViewById(R.id.exposure_label);
+
+        contrastSeekbar.setMax(200);
+        exposureSeekbar.setMax(200);
+        contrastSeekbar.setProgress(100);
+        exposureSeekbar.setProgress(100);
 
         saveButton = findViewById(R.id.save_button);
 
@@ -78,21 +88,19 @@ public class EditPicture extends AppCompatActivity {
         result.setImageBitmap(mBitmap);
 
     }
-
+  
     @Override
     protected void onResume() {
         super.onResume();
 
-        seekbar.setMax(200);
-        seekbar.setProgress(100);
-
-        seekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @SuppressLint("SetTextI18n")
+        contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                mBitmap = setContrast(mBitmap, (progress - 100f) / 3);
-                result.setImageBitmap(mBitmap);
-                textView.setText(getString(R.string.contrast) + (progress - 100f));
+                result.setImageBitmap(setFilter(
+                        BitmapFactory.decodeFile(myUri.getPath()),
+                        progress - 100,
+                        CONTRAST_FILTER));
+                contrastTextView.setText("contrast: " + (progress));
             }
 
             @Override
@@ -101,6 +109,26 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        exposureSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
+                result.setImageBitmap(setFilter(
+                        BitmapFactory.decodeFile(myUri.getPath()),
+                        progress - 100,
+                        EXPOSURE_FILTER));
+                exposureTextView.setText("exposure: " + (progress/100f*3f));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+
             }
         });
 
