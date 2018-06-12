@@ -15,11 +15,15 @@ import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.renderscript.Allocation;
+import android.renderscript.Element;
+import android.renderscript.RenderScript;
+import android.renderscript.ScriptIntrinsicBlend;
+import android.renderscript.ScriptIntrinsicBlur;
+import android.renderscript.ScriptIntrinsicConvolve3x3;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
-
-import com.example.android.autoeditor.EditPicture;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +33,8 @@ public class Utils {
     private static final String PREFERENCES_FILE = "PREFS";
     public static final int CONTRAST_FILTER = 0;
     public static final int EXPOSURE_FILTER = 1;
+    public static final int SATURATION_FILTER = 2;
+    public static final int SHARPNESS_FILTER = 3;
     public static final int PERMISSIONS_REQUEST_ID = 111;
 
     private static ColorMatrix contrastCm = new ColorMatrix();
@@ -94,7 +100,7 @@ public class Utils {
 
     }
 
-    public static Bitmap setFilter(Bitmap bmp, float value, int filter){
+    public static Bitmap setFilter(Bitmap bmp, float value, int filter, Context ctx){
 
         ColorMatrix cm = new ColorMatrix();
 
@@ -116,7 +122,7 @@ public class Utils {
 
             case EXPOSURE_FILTER:
 
-                value = (float) Math.pow(1/2f, -1*value/100*3);
+                value = (float) Math.pow(2f, value/100*3);
                 exposureCm.set(new float[]
                         {
                                 value, 0, 0, 0, 0,
@@ -125,6 +131,39 @@ public class Utils {
                                 0, 0, 0, 1, 0
                         });
                 break;
+
+            case SATURATION_FILTER:
+
+                value = value > 0 ?
+                        (float) Math.pow(1.01, value) : (value + 100)/100;
+
+                exposureCm.setSaturation(value);
+                break;
+
+            case SHARPNESS_FILTER:
+
+                float radius = Math.abs(value)/4f;
+                Bitmap blurred = blurBitmap(bmp, radius, ctx);
+
+                if(value < 0) {
+                    return blurred;
+                }
+
+                Bitmap sub = subtractBitmaps(bmp, blurred, ctx);
+
+                return addBitmaps(bmp, sub, ctx);
+
+            case 9:
+
+                Bitmap bm = bmp.copy(bmp.getConfig(), true);
+                Bitmap bm2;
+
+                for(int i = 0; i <= value/4; i++) {
+                    bm2 = sharpen(bm, value, ctx);
+                    bm = bm2.copy(bm2.getConfig(), true);
+                }
+                return bm;
+
 
         }
 
@@ -137,32 +176,6 @@ public class Utils {
         Paint paint = new Paint();
         paint.setColorFilter(new ColorMatrixColorFilter(cm));
         canvas.drawBitmap(bmp, 0, 0, paint);
-
-        return ret;
-    }
-
-    public Bitmap changeBitmapContrast(Bitmap bmp, float contrast)
-    {
-        float scale = contrast + 1.f;
-        float translate = (-.5f * scale + .5f) * 255.f;
-        ColorMatrix cm = new ColorMatrix(new float[]
-                {
-                        scale, 0, 0, 0, translate,
-                        0, scale, 0, 0, translate,
-                        0, 0, scale, 0, translate,
-                        0, 0, 0, 1, 0
-                });
-
-        Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
-
-        Canvas canvas = new Canvas(ret);
-
-        RectF drawRect=new RectF();
-        drawRect.set(0,0,bmp.getWidth(),bmp.getHeight());
-
-        Paint paint = new Paint();
-        paint.setColorFilter(new ColorMatrixColorFilter(cm));
-        canvas.drawBitmap(bmp, null, drawRect, paint);
 
         return ret;
     }
@@ -192,114 +205,118 @@ public class Utils {
         return ret;
     }
 
-    public Bitmap changeBitmapHue(Bitmap bmp, float value)
-    {
-        float cosVal = (float) Math.cos(value);
-        float sinVal = (float) Math.sin(value);
-        float lumR = 0.213f;
-        float lumG = 0.715f;
-        float lumB = 0.072f;
-        ColorMatrix cm = new ColorMatrix(new float[]
-                {
-                        lumR + cosVal * (1 - lumR) + sinVal * (-lumR), lumG + cosVal * (-lumG) + sinVal * (-lumG), lumB + cosVal * (-lumB) + sinVal * (1 - lumB), 0, 0,
-                        lumR + cosVal * (-lumR) + sinVal * (0.143f), lumG + cosVal * (1 - lumG) + sinVal * (0.140f), lumB + cosVal * (-lumB) + sinVal * (-0.283f), 0, 0,
-                        lumR + cosVal * (-lumR) + sinVal * (-(1 - lumR)), lumG + cosVal * (-lumG) + sinVal * (lumG), lumB + cosVal * (1 - lumB) + sinVal * (lumB), 0, 0,
-                        0f, 0f, 0f, 1f, 0f,
-                        0f, 0f, 0f, 0f, 1f
-                });
+    public static Bitmap sharpen(Bitmap original, float progress, Context ctx) {
+        float[] radius = new float[] {
+                -1,-1,-1,
+                -1,8,-1,
+                -1,-1,-1
+        };
 
-        Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
+        Bitmap bitmap = Bitmap.createBitmap(
+                original.getWidth(), original.getHeight(),
+                Bitmap.Config.ARGB_8888);
 
-        Canvas canvas = new Canvas(ret);
+        RenderScript rs = RenderScript.create(ctx);
 
-        RectF drawRect=new RectF();
-        drawRect.set(0,0,bmp.getWidth(),bmp.getHeight());
+        Allocation allocIn = Allocation.createFromBitmap(rs, original);
+        Allocation allocOut = Allocation.createFromBitmap(rs, bitmap);
 
-        Paint paint = new Paint();
-        paint.setColorFilter(new ColorMatrixColorFilter(cm));
-        canvas.drawBitmap(bmp, null, drawRect, paint);
+        ScriptIntrinsicConvolve3x3 convolution
+                = ScriptIntrinsicConvolve3x3.create(rs, Element.U8_4(rs));
+        convolution.setInput(allocIn);
+        convolution.setCoefficients(radius);
 
-        return ret;
+        convolution.forEach(allocOut);
+        allocOut.copyTo(bitmap);
+        rs.destroy();
+
+        return bitmap;
+
     }
 
-    public Bitmap changeBitmapSaturation(Bitmap bmp, float value)
-    {
-        float x = 1 + ((value > 0) ? 3 * value / 100 : value / 100);
-        float lumR = 0.3086f;
-        float lumG = 0.6094f;
-        float lumB = 0.0820f;
-        ColorMatrix cm = new ColorMatrix(new float[]
-                {
-                        lumR * (1 - x) + x, lumG * (1 - x), lumB * (1 - x), 0, 0,
-                        lumR * (1 - x), lumG * (1 - x) + x, lumB * (1 - x), 0, 0,
-                        lumR * (1 - x), lumG * (1 - x), lumB * (1 - x) + x, 0, 0,
-                        0, 0, 0, 1, 0,
-                        0, 0, 0, 0, 1
-                });
+    private static Bitmap addBitmaps(Bitmap orig, Bitmap blurred, Context context) {
+        Bitmap out = orig.copy(orig.getConfig(), true);
+        Bitmap blur = blurred.copy(blurred.getConfig(), true);
+        //Create renderscript
+        RenderScript rs = RenderScript.create(context);
 
-        Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
+        //Create allocation from Bitmap
+        Allocation origAlloc = Allocation.createFromBitmap(rs, out);
+        Allocation blurAlloc = Allocation.createFromBitmap(rs, blur);
 
-        Canvas canvas = new Canvas(ret);
+        //Create script
+        ScriptIntrinsicBlend blendScript = ScriptIntrinsicBlend.create(rs, Element.U8_4(rs));
+        blendScript.forEachAdd(blurAlloc, origAlloc);
+        //now add to orig
 
-        RectF drawRect=new RectF();
-        drawRect.set(0,0,bmp.getWidth(),bmp.getHeight());
+        //Copy script result into bitmap
+        origAlloc.copyTo(out);
 
-        Paint paint = new Paint();
-        paint.setColorFilter(new ColorMatrixColorFilter(cm));
-        canvas.drawBitmap(bmp, null, drawRect, paint);
-
-        return ret;
+        //Destroy everything to free memory
+        origAlloc.destroy();
+        blurAlloc.destroy();
+        blendScript.destroy();
+        rs.destroy();
+        return out;
     }
 
-    public Bitmap changeBitmapTemperature(Bitmap bmp, int r, int g, int b)
-    {
-        ColorMatrix cm = new ColorMatrix(new float[]
-                {
-                        r / 255.0f, 0, 0, 0, 0,
-                        0, g / 255.0f, 0, 0, 0,
-                        0, 0, b / 255.0f, 0, 0,
-                        0, 0, 0, 1, 0
-                });
+    private static Bitmap subtractBitmaps(Bitmap orig, Bitmap blurred, Context context) {
+        Bitmap out = orig.copy(orig.getConfig(), true);
+        Bitmap blur = blurred.copy(blurred.getConfig(), true);
+        //Create renderscript
+        RenderScript rs = RenderScript.create(context);
 
-        Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
+        //Create allocation from Bitmap
+        Allocation origAlloc = Allocation.createFromBitmap(rs, out);
+        Allocation blurAlloc = Allocation.createFromBitmap(rs, blur);
 
-        Canvas canvas = new Canvas(ret);
+        //Create script
+        ScriptIntrinsicBlend blendScript = ScriptIntrinsicBlend.create(rs, Element.U8_4(rs));
+        blendScript.forEachSubtract(blurAlloc, origAlloc);
+        //now add to orig
 
-        RectF drawRect=new RectF();
-        drawRect.set(0,0,bmp.getWidth(),bmp.getHeight());
+        //Copy script result into bitmap
+        origAlloc.copyTo(out);
 
-        Paint paint = new Paint();
-        paint.setColorFilter(new ColorMatrixColorFilter(cm));
-        canvas.drawBitmap(bmp, null, drawRect, paint);
-
-        return ret;
+        //Destroy everything to free memory
+        origAlloc.destroy();
+        blurAlloc.destroy();
+        blendScript.destroy();
+        rs.destroy();
+        return out;
     }
 
-    public Bitmap changeBitmapExposure(Bitmap bmp, float value)
-    {
-        ColorMatrix cm = new ColorMatrix(new float[]
-                {
-                        value, 0, 0, 0, 0,
-                        0, value, 0, 0, 0,
-                        0, 0, value, 0, 0,
-                        0, 0, 0, 1, 0,
-                });
+    private static Bitmap blurBitmap(Bitmap bitmap, float radius, Context context) {
+        if (radius == 0) {
+            return bitmap;
+        }
 
-        Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
+        Bitmap out = Bitmap.createBitmap(bitmap.getWidth(), bitmap.getHeight(), bitmap.getConfig());
+        //Create renderscript
+        RenderScript rs = RenderScript.create(context);
 
-        Canvas canvas = new Canvas(ret);
+        //Create allocation from Bitmap
+        Allocation allocation = Allocation.createFromBitmap(rs, bitmap);
 
-        RectF drawRect=new RectF();
-        drawRect.set(0,0,bmp.getWidth(),bmp.getHeight());
+        Allocation outAlloc = Allocation.createFromBitmap(rs, out);
 
-        Paint paint = new Paint();
-        paint.setColorFilter(new ColorMatrixColorFilter(cm));
-        canvas.drawBitmap(bmp, null, drawRect, paint);
+        //Create script
+        ScriptIntrinsicBlur blurScript = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
+        //Set blur radius (maximum 25.0)
+        blurScript.setRadius(radius);
+        //Set input for script
+        blurScript.setInput(allocation);
+        //Call script for output allocation
+        blurScript.forEach(outAlloc);
 
-        return ret;
-    }
+        //Copy script result into bitmap
+        outAlloc.copyTo(out);
 
-    public static void applyFilters() {
-
+        //Destroy everything to free memory
+        allocation.destroy();
+        outAlloc.destroy();
+        blurScript.destroy();
+        rs.destroy();
+        return out;
     }
 }

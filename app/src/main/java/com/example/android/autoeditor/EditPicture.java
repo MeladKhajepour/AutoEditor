@@ -19,8 +19,6 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import com.example.android.autoeditor.utils.Utils;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -33,8 +31,9 @@ import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
 import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
 import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
-import static com.example.android.autoeditor.utils.Utils.applyFilters;
+import static com.example.android.autoeditor.utils.Utils.SHARPNESS_FILTER;
 import static com.example.android.autoeditor.utils.Utils.setFilter;
+import static com.example.android.autoeditor.utils.Utils.sharpen;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
@@ -42,14 +41,19 @@ public class EditPicture extends AppCompatActivity {
     Uri myUri;
     SeekBar contrastSeekbar;
     SeekBar exposureSeekbar;
+    SeekBar sharpenSeekbar;
     TextView contrastTextView;
     TextView exposureTextView;
+    TextView sharpenTextView;
     Bitmap mBitmap;
+
+    Context ctx;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
+        ctx = getApplicationContext();
 
         //tries the receive the intent on photo taken
         result = findViewById(R.id.selected_picture_image_view);
@@ -57,13 +61,17 @@ public class EditPicture extends AppCompatActivity {
         //Start of test sliders etc
         contrastTextView = findViewById(R.id.contrast_label);
         contrastSeekbar = findViewById(R.id.contrast_seekbar);
+        sharpenSeekbar = findViewById(R.id.sharpen_seekbar);
         exposureSeekbar = findViewById(R.id.exposure_seekbar);
         exposureTextView = findViewById(R.id.exposure_label);
+        sharpenTextView = findViewById(R.id.sharpen_label);
 
         contrastSeekbar.setMax(200);
         exposureSeekbar.setMax(200);
+        sharpenSeekbar.setMax(200);
         contrastSeekbar.setProgress(100);
         exposureSeekbar.setProgress(100);
+        sharpenSeekbar.setProgress(100);
 
         saveButton = findViewById(R.id.save_button);
 
@@ -101,7 +109,7 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER);
+                res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER, ctx);
                 result.setImageBitmap(res);
                 contrastTextView.setText("contrast: " + (progress));
             }
@@ -120,9 +128,28 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, EXPOSURE_FILTER);
+                res = setFilter(mBitmap, progress - 100, EXPOSURE_FILTER, ctx);
                 result.setImageBitmap(res);
                 exposureTextView.setText("exposure: " + (progress/100f*3f));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        });
+
+        sharpenSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            Bitmap res;
+
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
+                res = setFilter(mBitmap, progress - 100, SHARPNESS_FILTER, ctx);
+                result.setImageBitmap(res);
+                exposureTextView.setText("Sharpness: " + (progress - 100));
             }
 
             @Override
