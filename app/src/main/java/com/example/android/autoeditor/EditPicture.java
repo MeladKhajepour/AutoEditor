@@ -30,10 +30,10 @@ import java.util.Objects;
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
 import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
+import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
 import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
-import static com.example.android.autoeditor.utils.Utils.SHARPNESS_FILTER;
+import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
 import static com.example.android.autoeditor.utils.Utils.setFilter;
-import static com.example.android.autoeditor.utils.Utils.sharpen;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
@@ -128,7 +128,7 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, EXPOSURE_FILTER, ctx);
+                res = setFilter(mBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
                 result.setImageBitmap(res);
                 exposureTextView.setText("exposure: " + (progress/100f*3f));
             }
@@ -147,7 +147,7 @@ public class EditPicture extends AppCompatActivity {
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, SHARPNESS_FILTER, ctx);
+                res = setFilter(mBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
                 result.setImageBitmap(res);
                 exposureTextView.setText("Sharpness: " + (progress - 100));
             }

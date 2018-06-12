@@ -34,7 +34,8 @@ public class Utils {
     public static final int CONTRAST_FILTER = 0;
     public static final int EXPOSURE_FILTER = 1;
     public static final int SATURATION_FILTER = 2;
-    public static final int SHARPNESS_FILTER = 3;
+    public static final int UNSHARP_MASK_SHARPEN = 3;
+    public static final int CONVOLUTION_SHARPEN = 4;
     public static final int PERMISSIONS_REQUEST_ID = 111;
 
     private static ColorMatrix contrastCm = new ColorMatrix();
@@ -140,31 +141,13 @@ public class Utils {
                 exposureCm.setSaturation(value);
                 break;
 
-            case SHARPNESS_FILTER:
+            case UNSHARP_MASK_SHARPEN:
 
-                float radius = Math.abs(value)/4f;
-                Bitmap blurred = blurBitmap(bmp, radius, ctx);
+                return unsharpMask(bmp, value, ctx);
 
-                if(value < 0) {
-                    return blurred;
-                }
+            case CONVOLUTION_SHARPEN:
 
-                Bitmap sub = subtractBitmaps(bmp, blurred, ctx);
-
-                return addBitmaps(bmp, sub, ctx);
-
-            case 9:
-
-                Bitmap bm = bmp.copy(bmp.getConfig(), true);
-                Bitmap bm2;
-
-                for(int i = 0; i <= value/4; i++) {
-                    bm2 = sharpen(bm, value, ctx);
-                    bm = bm2.copy(bm2.getConfig(), true);
-                }
-                return bm;
-
-
+                return convolutionSharpen(bmp, value, ctx);
         }
 
         Bitmap ret = Bitmap.createBitmap(bmp.getWidth(), bmp.getHeight(), bmp.getConfig());
@@ -205,11 +188,20 @@ public class Utils {
         return ret;
     }
 
-    public static Bitmap sharpen(Bitmap original, float progress, Context ctx) {
+    private static Bitmap convolutionSharpen(Bitmap original, float progress, Context ctx) {
+
+        if(progress < 0) {
+            return blurBitmap(original, progress/-4, ctx);
+        }
+
+        float d = progress/100f;
+        float o = d *  (float) Math.sqrt(2);
+        float c = (o * 4) + (d * 4) + 1;
+
         float[] radius = new float[] {
-                -1,-1,-1,
-                -1,8,-1,
-                -1,-1,-1
+                -d, -o, -d,
+                -o, c, -o,
+                -d, -o, -d
         };
 
         Bitmap bitmap = Bitmap.createBitmap(
@@ -232,6 +224,19 @@ public class Utils {
 
         return bitmap;
 
+    }
+
+    private static Bitmap unsharpMask(Bitmap bmp, float value, Context ctx) {
+        float radius = Math.abs(value)/4f;
+        Bitmap blurred = blurBitmap(bmp, radius, ctx);
+
+        if(value < 0) {
+            return blurred;
+        }
+
+        Bitmap sub = subtractBitmaps(bmp, blurred, ctx);
+
+        return addBitmaps(bmp, sub, ctx);
     }
 
     private static Bitmap addBitmaps(Bitmap orig, Bitmap blurred, Context context) {
