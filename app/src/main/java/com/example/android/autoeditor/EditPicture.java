@@ -5,27 +5,50 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.graphics.RectF;
+import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.SystemClock;
+import android.support.annotation.RequiresApi;
 import android.support.media.ExifInterface;
 import android.support.v7.app.AppCompatActivity;
+import android.text.TextUtils;
+import android.util.Size;
+import android.util.TypedValue;
+import android.view.Display;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
+import com.example.android.autoeditor.env.BorderedText;
+import com.example.android.autoeditor.env.ImageUtils;
+import com.example.android.autoeditor.env.Logger;
+
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
+import java.util.Collections;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
+import java.util.Vector;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
@@ -35,7 +58,46 @@ import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
 import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
 import static com.example.android.autoeditor.utils.Utils.setFilter;
 
+@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class EditPicture extends AppCompatActivity {
+    private static final Logger LOGGER = new Logger();
+
+    private static final int TF_OD_API_INPUT_SIZE = 600;
+    private static final String TF_OD_API_MODEL_FILE =
+            "ssd_mobilenet_v1_android_export.pb";
+    private static final String TF_OD_API_LABELS_FILE = "coco_labels_list.txt";
+    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
+    private static final boolean MAINTAIN_ASPECT = false;
+    private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
+    private static final boolean SAVE_PREVIEW_BITMAP = false;
+    private static final float TEXT_SIZE_DIP = 10;
+    private static final int[] COLORS = {
+            Color.BLUE, Color.RED, Color.GREEN, Color.YELLOW, Color.CYAN, Color.MAGENTA, Color.WHITE,
+            Color.parseColor("#55FF55"), Color.parseColor("#FFA500"), Color.parseColor("#FF8888"),
+            Color.parseColor("#AAAAFF"), Color.parseColor("#FFFFAA"), Color.parseColor("#55AAAA"),
+            Color.parseColor("#AA33AA"), Color.parseColor("#0D0068")
+    };
+    private final Paint boxPaint = new Paint();
+    private Integer sensorOrientation;
+    private Classifier detector;
+    private int previewWidth = 0;
+    private int previewHeight = 0;
+    private Bitmap rgbFrameBitmap = null;
+    private Bitmap croppedBitmap = null;
+    private Matrix frameToCropTransform;
+    private Matrix cropToFrameTransform;
+    private Bitmap cropCopyBitmap;
+    private BorderedText borderedText;
+    private long lastProcessingTimeMs;
+    private OverlayView detectionOverlay;
+    private List<Classifier.Recognition> mappedRecognitions =
+            new LinkedList<>();
+    private boolean debug = false;
+    private Handler handler;
+    private HandlerThread handlerThread;
+    protected Runnable postInferenceCallback;
+    protected byte[][] yuvBytes = new byte[3][];
+
     Button saveButton;
     ImageView result;
     Uri myUri;
@@ -96,6 +158,12 @@ public class EditPicture extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+
+        handlerThread = new HandlerThread("inference");
+        handlerThread.start();
+        handler = new Handler(handlerThread.getLooper());
+
+        recognize();
         result.setImageBitmap(mBitmap);
 
     }
@@ -107,6 +175,7 @@ public class EditPicture extends AppCompatActivity {
         contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             Bitmap res;
 
+            @SuppressLint("SetTextI18n")
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER, ctx);
@@ -126,6 +195,7 @@ public class EditPicture extends AppCompatActivity {
         exposureSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             Bitmap res;
 
+            @SuppressLint("SetTextI18n")
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 res = setFilter(mBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
@@ -145,6 +215,7 @@ public class EditPicture extends AppCompatActivity {
         sharpenSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             Bitmap res;
 
+            @SuppressLint("SetTextI18n")
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 res = setFilter(mBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
@@ -168,6 +239,28 @@ public class EditPicture extends AppCompatActivity {
                 saveImage();
             }
         });
+
+    }
+
+    @Override
+    public synchronized void onPause() {
+        LOGGER.d("onPause " + this);
+
+        if (!isFinishing()) {
+            LOGGER.d("Requesting finish");
+            finish();
+        }
+
+        handlerThread.quitSafely();
+        try {
+            handlerThread.join();
+            handlerThread = null;
+            handler = null;
+        } catch (final InterruptedException e) {
+            LOGGER.e(e, "Exception!");
+        }
+
+        super.onPause();
     }
 
     @Override
@@ -366,4 +459,214 @@ public class EditPicture extends AppCompatActivity {
         mediaScanIntent.setData(contentUri);
         this.sendBroadcast(mediaScanIntent);
     }
+
+    public void recognize() {
+
+        int[] rgbBytes;
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        mBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
+        byte[] byteArray = stream.toByteArray();
+        yuvBytes[0] = byteArray;
+
+        final float textSizePx =
+                TypedValue.applyDimension(
+                        TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
+        borderedText = new BorderedText(textSizePx);
+        borderedText.setTypeface(Typeface.MONOSPACE);
+
+        try {
+            detector = TensorFlowObjectDetectionAPIModel.create(
+                    getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
+        } catch (final IOException e) {
+            LOGGER.e("Exception initializing classifier!", e);
+            Toast toast =
+                    Toast.makeText(
+                            getApplicationContext(), "Classifier could not be initialized", Toast.LENGTH_SHORT);
+            toast.show();
+            finish();
+        }
+
+        previewWidth = mBitmap.getWidth();
+        previewHeight = mBitmap.getHeight();
+
+        final Display display = getWindowManager().getDefaultDisplay();
+
+        sensorOrientation = display.getRotation();
+
+
+        rgbBytes = new int[previewWidth * previewHeight];
+        ImageUtils.convertYUV420SPToARGB8888(byteArray, rgbBytes, previewWidth, previewHeight, false);
+        LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
+        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
+        croppedBitmap = Bitmap.createBitmap(TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE, Bitmap.Config.ARGB_8888);
+
+        frameToCropTransform =
+                ImageUtils.getTransformationMatrix(
+                        previewWidth, previewHeight,
+                        TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE,
+                        sensorOrientation, MAINTAIN_ASPECT);
+
+        cropToFrameTransform = new Matrix();
+        frameToCropTransform.invert(cropToFrameTransform);
+
+        addCallback(
+                new OverlayView.DrawCallback() {
+                    @Override
+                    public void drawCallback(final Canvas canvas) {
+                        renderDebug(canvas);
+                    }
+                });
+
+        boxPaint.setColor(Color.RED);
+        boxPaint.setStyle(Paint.Style.STROKE);
+        boxPaint.setStrokeWidth(8.0f);
+        detectionOverlay = findViewById(R.id.detection_overlay);
+        detectionOverlay.addCallback(
+                new OverlayView.DrawCallback() {
+                    @Override
+                    public void drawCallback(final Canvas canvas) {
+                        renderOverlay(canvas);
+                    }
+                });
+        processImageRGBbytes(rgbBytes);
+    }
+
+    protected void processImageRGBbytes(int[] rgbBytes) {
+        rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
+        final Canvas canvas = new Canvas(croppedBitmap);
+        canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
+
+        final Canvas tempCanvas = new Canvas(croppedBitmap);
+        tempCanvas.drawBitmap(mBitmap, 0, 0, new Paint());
+
+        runInBackground(
+                new Runnable() {
+                    @Override
+                    public void run() {
+                        final long startTime = SystemClock.uptimeMillis();
+                        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+                        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
+                        LOGGER.i("Detect: %s", results);
+                        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+                        final Canvas canvas = new Canvas(cropCopyBitmap);
+                        canvas.drawBitmap(cropCopyBitmap, 0, 0, new Paint());
+                        final Paint paint = new Paint();
+                        paint.setColor(Color.RED);
+                        paint.setStyle(Paint.Style.STROKE);
+                        paint.setStrokeWidth(2.0f);
+
+                        mappedRecognitions.clear();
+                        for (final Classifier.Recognition result : results) {
+                            final RectF location = result.getLocation();
+                            if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
+                                canvas.drawRect(location, paint);
+                                cropToFrameTransform.mapRect(location);
+                                result.setLocation(location);
+                                mappedRecognitions.add(result);
+                            }
+                        }
+
+                        mBitmap = cropCopyBitmap;
+                        requestRender();
+                        detectionOverlay.postInvalidate();
+                        if (postInferenceCallback != null) {
+                            postInferenceCallback.run();
+                        }
+                    }
+                });
+    }
+
+
+
+    private void renderOverlay(final Canvas canvas) {
+        final float multiplier =
+                Math.min(canvas.getWidth() / (float) previewHeight, canvas.getHeight() / (float) previewWidth);
+        Matrix frameToCanvasMatrix =
+                ImageUtils.getTransformationMatrix(
+                        previewWidth,
+                        previewHeight,
+                        (int) (multiplier * previewHeight),
+                        (int) (multiplier * previewWidth),
+                        sensorOrientation,
+                        false);
+        int count = 0;
+        for (final Classifier.Recognition recognition : mappedRecognitions) {
+            final RectF location = new RectF(recognition.getLocation());
+
+            frameToCanvasMatrix.mapRect(location);
+            boxPaint.setColor(COLORS[count]);
+            count = (count + 1) % COLORS.length;
+
+            final float cornerSize = Math.min(location.width(), location.height()) / 8.0f;
+            canvas.drawRoundRect(location, cornerSize, cornerSize, boxPaint);
+
+            @SuppressLint("DefaultLocale") final String labelString =
+                    !TextUtils.isEmpty(recognition.getTitle())
+                            ? String.format("%s %.2f", recognition.getTitle(), recognition.getConfidence())
+                            : String.format("%.2f", recognition.getConfidence());
+            borderedText.drawText(canvas, location.left + cornerSize, location.bottom, labelString);
+        }
+    }
+
+    private void renderDebug(final Canvas canvas) {
+        if (!isDebug()) {
+            return;
+        }
+        final Bitmap copy = cropCopyBitmap;
+        if (copy == null) {
+            return;
+        }
+
+        final int backgroundColor = Color.argb(100, 0, 0, 0);
+        canvas.drawColor(backgroundColor);
+
+        final Matrix matrix = new Matrix();
+        final float scaleFactor = 2;
+        matrix.postScale(scaleFactor, scaleFactor);
+        matrix.postTranslate(
+                canvas.getWidth() - copy.getWidth() * scaleFactor,
+                canvas.getHeight() - copy.getHeight() * scaleFactor);
+        canvas.drawBitmap(copy, matrix, new Paint());
+
+        final Vector<String> lines = new Vector<>();
+        if (detector != null) {
+            final String statString = detector.getStatString();
+            final String[] statLines = statString.split("\n");
+            Collections.addAll(lines, statLines);
+        }
+        lines.add("");
+
+        lines.add("Frame: " + previewWidth + "x" + previewHeight);
+        lines.add("Crop: " + copy.getWidth() + "x" + copy.getHeight());
+        lines.add("View: " + canvas.getWidth() + "x" + canvas.getHeight());
+        lines.add("Rotation: " + sensorOrientation);
+        lines.add("Inference time: " + lastProcessingTimeMs + "ms");
+
+        borderedText.drawLines(canvas, 10, canvas.getHeight() - 10, lines);
+    }
+
+    public boolean isDebug() {
+        return debug;
+    }
+
+    public void requestRender() {
+        final OverlayView overlay = findViewById(R.id.debug_overlay);
+        if (overlay != null) {
+            overlay.postInvalidate();
+        }
+    }
+
+    public void addCallback(final OverlayView.DrawCallback callback) {
+        final OverlayView overlay = findViewById(R.id.debug_overlay);
+        if (overlay != null) {
+            overlay.addCallback(callback);
+        }
+    }
+
+    protected synchronized void runInBackground(final Runnable r) {
+        if (handler != null) {
+            handler.post(r);
+        }
+    }
+
 }
