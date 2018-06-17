@@ -24,9 +24,13 @@ import android.renderscript.ScriptIntrinsicConvolve3x3;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
+import android.view.View;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.example.android.autoeditor.MainActivity.CAMERA_REQUEST_CODE;
+import static com.example.android.autoeditor.MainActivity.MEDIA_REQUEST_CODE;
 
 public class Utils {
 
@@ -36,28 +40,44 @@ public class Utils {
     public static final int SATURATION_FILTER = 2;
     public static final int UNSHARP_MASK_SHARPEN = 3;
     public static final int CONVOLUTION_SHARPEN = 4;
-    public static final int PERMISSIONS_REQUEST_ID = 111;
+
+    private static String mCurrentPhotoPath;
+    private static int imageScaleX;
+    private static int imageScaleY;
 
     private static ColorMatrix contrastCm = new ColorMatrix();
     private static ColorMatrix exposureCm = new ColorMatrix();
 
     public static void requestMissingPermissions(Activity ctx) {
-        List<String> permissionsList = new ArrayList<>();
+        List<String> permissionList = new ArrayList<>();
 
-        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-            permissionsList.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
-        }
         if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {//granted perm int = 0
-            permissionsList.add(Manifest.permission.CAMERA);
+            permissionList.add(Manifest.permission.CAMERA);
+        }
+        if (ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            permissionList.add(Manifest.permission.WRITE_EXTERNAL_STORAGE);
         }
 
-        if (!permissionsList.isEmpty()) {
-            requestPermission(ctx, permissionsList);
+        if (!permissionList.isEmpty()) {
+            requestPermissionList(ctx, permissionList);
         }
     }
 
-    public static void requestPermission(Activity ctx, List<String> permission) {
-        ActivityCompat.requestPermissions(ctx, permission.toArray(new String[permission.size()]), PERMISSIONS_REQUEST_ID);
+    public static void requestPermissionList(Activity ctx, List<String> permissions) {
+        ActivityCompat.requestPermissions(ctx, permissions.toArray(new String[permissions.size()]), 0);
+    }
+
+    public static int getRequestCode(String perm) {
+        switch(perm) {
+            case Manifest.permission.CAMERA:
+                return CAMERA_REQUEST_CODE;
+
+            case Manifest.permission.WRITE_EXTERNAL_STORAGE:
+                return MEDIA_REQUEST_CODE;
+
+            default:
+                return -1;
+        }
     }
 
     public static boolean allPermissionsGranted(Activity ctx) {
@@ -99,6 +119,27 @@ public class Utils {
             activity.getWindow().setStatusBarColor(Color.HSVToColor(hsv));
         }
 
+    }
+
+    public static void setPhotoPath(String path) {
+        mCurrentPhotoPath = path;
+    }
+
+    public static String getPhotoPath() {
+        return mCurrentPhotoPath;
+    }
+
+    public static void setViewDimens(View view) {
+        imageScaleX = view.getWidth();
+        imageScaleY = view.getHeight();
+    }
+
+    public static int getTargetWidth() {
+        return imageScaleX;
+    }
+
+    public static int getTargetHeight() {
+        return imageScaleY;
     }
 
     public static Bitmap setFilter(Bitmap bmp, float value, int filter, Context ctx){

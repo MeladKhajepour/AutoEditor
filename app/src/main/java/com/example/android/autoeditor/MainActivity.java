@@ -1,7 +1,6 @@
 package com.example.android.autoeditor;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -12,77 +11,56 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
-import android.widget.Toast;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.widget.ImageButton;
 
-import com.example.android.autoeditor.floatingToolbar.FloatBar;
 import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.Locale;
 import java.util.Objects;
 
-import static com.example.android.autoeditor.utils.Utils.PERMISSIONS_REQUEST_ID;
+import static com.example.android.autoeditor.utils.Utils.setPhotoPath;
 
 public class MainActivity extends AppCompatActivity {
     public static final String IMAGE = "image";
     public static final String GALLERY_IMAGE = "galleryImage";
-    public static final int CAMERA_REQUEST_CODE = 1;
-    public static final int MEDIA_REQUEST_CODE = 2;
+    public static final int CAMERA_REQUEST_CODE = (int) Math.floor(7*Math.random());
+    public static final int MEDIA_REQUEST_CODE = (int) Math.floor(11*Math.random());
     public static final String PREF_USER_FIRST_TIME = "user_first_time";
 
-    private static final String TAG = MainActivity.class.getSimpleName();
-
     boolean isUserFirstTime;
-    private FloatBar floatBar;
-    private FloatingActionButton fab;
     private Intent startEditPictureActivity;
-    private Uri photoURI;
-    private Activity that;
+    private Activity mainActivity;
+    private ImageButton cameraBtn, galleryBtn;
+
+    Uri photoURI;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        isUserFirstTime = Boolean.valueOf(Utils.readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
-        that = this;
-
-        if (isUserFirstTime) {
-            Intent introIntent = new Intent(MainActivity.this, Onboarding.class);
-            introIntent.putExtra(PREF_USER_FIRST_TIME, isUserFirstTime);
-
-            startActivity(introIntent);
-        }
-
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-
-        initFloatBar();
-
         startEditPictureActivity = new Intent(this, EditPicture.class);
-    }
+        mainActivity = this;
 
-    @Override
-    public void onBackPressed() {
-        floatBar.hide();
+        checkOnboarding();
+        init();
     }
 
     @Override
@@ -109,22 +87,87 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void cameraIntent(){
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        File photoFile = null;
-        try {
-            photoFile = createImageFile();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        photoURI = FileProvider.getUriForFile(MainActivity.this, BuildConfig.APPLICATION_ID, Objects.requireNonNull(photoFile));
-        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-        takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+    private void checkOnboarding() {
+        isUserFirstTime = Boolean.valueOf(Utils.readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
 
+        if (isUserFirstTime) {
+            Intent introIntent = new Intent(MainActivity.this, Onboarding.class);
+            introIntent.putExtra(PREF_USER_FIRST_TIME, isUserFirstTime);
+
+            startActivity(introIntent);
+        }
     }
 
-    private void galleryIntent() {
+    private void init() {
+
+        final View view = findViewById(R.id.ghost_view);
+        ViewTreeObserver vto = view.getViewTreeObserver();
+        vto.addOnGlobalLayoutListener (new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                view.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                Utils.setViewDimens(view);
+            }
+        });
+
+        cameraBtn = findViewById(R.id.add_from_camera);
+        galleryBtn = findViewById(R.id.add_from_gallery);
+
+        cameraBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(hasPermission(Manifest.permission.CAMERA)) {
+                    cameraIntent();
+                } else {
+                    getPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE);
+                }
+            }
+        });
+
+        galleryBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    galleryIntent();
+                } else {
+                    getPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE);
+                }
+            }
+        });
+    }
+
+    private void cameraIntent(){
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+
+            // Create the File where the photo should go
+            File photoFile = null;
+            try {
+                photoFile = createImageFile();
+            } catch (IOException e) {
+                // Error occurred while creating the File
+                e.printStackTrace();
+            }
+
+            // Continue only if the File was successfully created
+            if (photoFile != null) {
+                photoURI = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, photoFile);
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
+                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+            }
+        }
+    }
+
+    private boolean hasPermission(String permission) {
+        return ContextCompat.checkSelfPermission(mainActivity, permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void getPermission(String permission, int code) {
+        ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
+    }
+
+    private void galleryIntent() {//todo
         Intent getIntent = new Intent(Intent.ACTION_GET_CONTENT);
         getIntent.setType("image/*");
 
@@ -169,9 +212,12 @@ public class MainActivity extends AppCompatActivity {
 
         for (int i = 0, len = permissions.length; i < len; i++) {
             final String permission = permissions[i];
+
             if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
+
                 // user rejected the permission
-                boolean showRationale = ActivityCompat.shouldShowRequestPermissionRationale(that, permission);
+                boolean showRationale = ActivityCompat.shouldShowRequestPermissionRationale(mainActivity, permission);
+
                 if (! showRationale) {
                     // user also CHECKED "never ask again"
                     // you can either enable some fall back,
@@ -180,44 +226,44 @@ public class MainActivity extends AppCompatActivity {
                     // again the permission and directing to
                     // the app setting
                     if(Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) {
-                        Snackbar.make(fab, "File access required", Snackbar.LENGTH_LONG)
+                        Snackbar.make(galleryBtn, "File access required", Snackbar.LENGTH_LONG)
                                 .show();
                     } else if (Manifest.permission.CAMERA.equals(permission)) {
-                        Snackbar.make(fab, "Camera access required", Snackbar.LENGTH_LONG)
+                        Snackbar.make(cameraBtn, "Camera access required", Snackbar.LENGTH_LONG)
                                 .show();
                     }
-                } else if (Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) {
+                } else if (Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) { // make an alert to explain what permission is for
 
                     new AlertDialog.Builder(this).setTitle("File Access Denied")
                             .setMessage("File access is required for loading images to the app and saving the edited images")
                             .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    Utils.requestPermission(that, Arrays.asList(permission));
+                                    Utils.requestPermissionList(mainActivity, Collections.singletonList(permission));
                                 }
                             })
                             .setNegativeButton("Later", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    Snackbar.make(fab, "File access required", Snackbar.LENGTH_LONG)
+                                    Snackbar.make(galleryBtn, "File access required", Snackbar.LENGTH_LONG)
                                             .show();
                                 }
                             })
-                            .create()
-                            .show();
+                            .create().show();
+
                 } else if (Manifest.permission.CAMERA.equals(permission)) {
                     new AlertDialog.Builder(this).setTitle("Camera Access Denied")
                             .setMessage("Camera access is required for taking pictures")
                             .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    Utils.requestPermission(that, Arrays.asList(permission));
+                                    Utils.requestPermissionList(mainActivity, Collections.singletonList(permission));
                                 }
                             })
                             .setNegativeButton("Later", new DialogInterface.OnClickListener() {
                                 @Override
                                 public void onClick(DialogInterface dialog, int which) {
-                                    Snackbar.make(fab, "Camera access required", Snackbar.LENGTH_LONG)
+                                    Snackbar.make(cameraBtn, "Camera access required", Snackbar.LENGTH_LONG)
                                             .show();
                                 }
                             })
@@ -230,51 +276,17 @@ public class MainActivity extends AppCompatActivity {
 
     private File createImageFile() throws IOException {
         // Create an image file name
-        @SuppressLint("SimpleDateFormat") String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
         String imageFileName = "JPEG_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        return File.createTempFile(
+        File image = File.createTempFile(
                 imageFileName,  /* prefix */
                 ".jpg",         /* suffix */
                 storageDir      /* directory */
         );
-    }
+        // Save a file: path for use with ACTION_VIEW intents
+        setPhotoPath(image.getAbsolutePath());
 
-    private void initFloatBar() {
-
-        floatBar  = findViewById(R.id.fabtoolbar);
-        fab = findViewById(R.id.fab);
-        floatBar.attachFab(fab);
-
-        floatBar.setClickListener(new FloatBar.ItemClickListener() {
-            @Override
-            public void onItemClick(MenuItem item) {
-
-                switch (item.getItemId()) {
-
-                    case R.id.add_from_camera:
-                        if (ContextCompat.checkSelfPermission(that, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            cameraIntent();
-                        } else {
-                            ActivityCompat.requestPermissions(that, new String[] {Manifest.permission.CAMERA}, PERMISSIONS_REQUEST_ID);
-                        }
-                        break;
-
-                    case R.id.add_from_gallery:
-                        if (ContextCompat.checkSelfPermission(that, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-                            galleryIntent();
-                        } else {
-                            ActivityCompat.requestPermissions(that, new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST_ID);
-                        }
-                        break;
-
-                }
-            }
-
-            @Override
-            public void onItemLongClick(MenuItem item) {
-
-            }
-        });
+        return image;
     }
 }

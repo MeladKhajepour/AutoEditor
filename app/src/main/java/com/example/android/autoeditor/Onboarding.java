@@ -10,13 +10,13 @@ import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
+import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -27,10 +27,13 @@ import android.widget.TextView;
 
 import com.example.android.autoeditor.utils.Utils;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Onboarding extends AppCompatActivity {
 
     /**
-     * The {@link android.support.v4.view.PagerAdapter} that will provide
+     * The {@link android.support.v4.view.PagerAdapter} onboardingActivity will provide
      * fragments for each of the sections. We use a
      * {@link FragmentPagerAdapter} derivative, which will keep every
      * loaded fragment in memory. If this becomes too memory intensive, it
@@ -40,7 +43,7 @@ public class Onboarding extends AppCompatActivity {
     private SectionsPagerAdapter mSectionsPagerAdapter;
 
     /**
-     * The {@link ViewPager} that will host the section contents.
+     * The {@link ViewPager} onboardingActivity will host the section contents.
      */
     private ViewPager mViewPager;
     private ImageButton mNextBtn;
@@ -49,7 +52,7 @@ public class Onboarding extends AppCompatActivity {
     private ImageView zero, one, two;
     private ImageView[] indicators;
 
-    private Activity that;
+    private Activity onboardingActivity;
 
     int page = 0;   //  to track page position
 
@@ -66,7 +69,7 @@ public class Onboarding extends AppCompatActivity {
         }
 
         mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
-        that = this;
+        onboardingActivity = this;
 
         mNextBtn = findViewById(R.id.intro_btn_next);
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP)
@@ -107,7 +110,7 @@ public class Onboarding extends AppCompatActivity {
                  */
                 int colorUpdate = (Integer) evaluator.evaluate(positionOffset, colorList[position], colorList[position == 2 ? position : position + 1]);
                 mViewPager.setBackgroundColor(colorUpdate);
-                Utils.darkenStatusBar(that, colorUpdate);
+                Utils.darkenStatusBar(onboardingActivity, colorUpdate);
             }
 
             @Override
@@ -163,10 +166,10 @@ public class Onboarding extends AppCompatActivity {
             public void onClick(View v) {
                 Utils.saveSharedSetting(Onboarding.this, MainActivity.PREF_USER_FIRST_TIME, "false");
 
-                if(Utils.allPermissionsGranted(that)) {
+                if(Utils.allPermissionsGranted(onboardingActivity)) {
                     finish();
                 } else {
-                    Utils.requestMissingPermissions(that);
+                    Utils.requestMissingPermissions(onboardingActivity);
                 }
             }
         });
@@ -177,31 +180,29 @@ public class Onboarding extends AppCompatActivity {
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
 
         if(permissionsDenied(grantResults)) {
+            String alertBodyText = getAlertBodyText(permissions, grantResults);
 
-            new AlertDialog.Builder(this).setTitle("Permissions Denied")
-                    .setMessage("Both permissions must be granted for this app to fully function: \n\n" +
-                            "File access: For loading and saving images \n" +
-                            "Camera access: To take new pictures")
-                    .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
+            new AlertDialog.Builder(this).setTitle(R.string.onboarding_alert_title)
+                    .setMessage(alertBodyText)
+                    .setPositiveButton(R.string.onboarding_alert_positive_btn, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
-                            Utils.requestMissingPermissions(that);
+                            Utils.requestMissingPermissions(onboardingActivity);
                         }
                     })
-                    .setNegativeButton("Later", new DialogInterface.OnClickListener() {
+                    .setNegativeButton(R.string.onboarding_alert_negative_btn, new DialogInterface.OnClickListener() {
                         @Override
                         public void onClick(DialogInterface dialog, int which) {
                             finish();
                         }
                     })
-                    .create()
-                    .show();
+                    .create().show();
         } else {
             finish();
         }
     }
 
-    private boolean permissionsDenied(int[] permissionResults) {
+    private boolean permissionsDenied(int[] permissionResults) { // Checks if any permissions were denied
 
         for(int i : permissionResults) {
             if(i == PackageManager.PERMISSION_DENIED) {
@@ -210,6 +211,31 @@ public class Onboarding extends AppCompatActivity {
         }
 
         return false;
+    }
+
+    private String getAlertBodyText(String[] permissions, int[] grantResults) { // Gets alert body text based on denied permission
+        int numDeniedPerms = 0;
+        List<String> deniedPerms = new ArrayList<>();
+
+        for(int i = 0; i < grantResults.length; i++) {
+            if(grantResults[i] == PackageManager.PERMISSION_DENIED) {
+                numDeniedPerms++;
+                deniedPerms.add(permissions[i]);
+            }
+        }
+
+        if(numDeniedPerms > 1) {
+            return getResources().getString(R.string.onboarding_alert_body_both);
+
+        } else if(deniedPerms.contains(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+            return getResources().getString(R.string.onboarding_alert_body_gallery);
+
+        } else if(deniedPerms.contains(Manifest.permission.CAMERA)) {
+            return getResources().getString(R.string.onboarding_alert_body_camera);
+
+        }
+
+        return "";
     }
 
     void updateIndicators(int position) {
@@ -260,6 +286,7 @@ public class Onboarding extends AppCompatActivity {
             headerTv = rootView.findViewById(R.id.section_label);
             descTv = rootView.findViewById(R.id.section_desc);
 
+            assert getArguments() != null;
             headerTv.setText(header[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
             descTv.setText(desc[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
 
@@ -272,7 +299,7 @@ public class Onboarding extends AppCompatActivity {
     }
 
     /**
-     * A {@link FragmentPagerAdapter} that returns a fragment corresponding to
+     * A {@link FragmentPagerAdapter} onboardingActivity returns a fragment corresponding to
      * one of the sections/tabs/pages.
      */
     public class SectionsPagerAdapter extends FragmentPagerAdapter {
@@ -291,19 +318,6 @@ public class Onboarding extends AppCompatActivity {
         public int getCount() {
             // Show 3 total pages.
             return 3;
-        }
-
-        @Override
-        public CharSequence getPageTitle(int position) {
-            switch (position) {
-                case 0:
-                    return "INTRO";
-                case 1:
-                    return "EXPORT OPTIONS";
-                case 2:
-                    return "PERMISSIONS";
-            }
-            return null;
         }
     }
 }

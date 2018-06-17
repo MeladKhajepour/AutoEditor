@@ -19,6 +19,8 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import com.example.android.autoeditor.utils.Utils;
+
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -31,13 +33,13 @@ import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
 import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
 import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
-import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
 import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
+import static com.example.android.autoeditor.utils.Utils.getPhotoPath;
 import static com.example.android.autoeditor.utils.Utils.setFilter;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
-    ImageView result;
+    ImageView mImageView;
     Uri myUri;
     SeekBar contrastSeekbar;
     SeekBar exposureSeekbar;
@@ -56,15 +58,15 @@ public class EditPicture extends AppCompatActivity {
         ctx = getApplicationContext();
 
         //tries the receive the intent on photo taken
-        result = findViewById(R.id.selected_picture_image_view);
+        mImageView = findViewById(R.id.selected_picture_image_view);
 
         //Start of test sliders etc
         contrastTextView = findViewById(R.id.contrast_label);
         contrastSeekbar = findViewById(R.id.contrast_seekbar);
-        sharpenSeekbar = findViewById(R.id.sharpen_seekbar);
-        exposureSeekbar = findViewById(R.id.exposure_seekbar);
-        exposureTextView = findViewById(R.id.exposure_label);
         sharpenTextView = findViewById(R.id.sharpen_label);
+        sharpenSeekbar = findViewById(R.id.sharpen_seekbar);
+        exposureTextView = findViewById(R.id.exposure_label);
+        exposureSeekbar = findViewById(R.id.exposure_seekbar);
 
         contrastSeekbar.setMax(200);
         exposureSeekbar.setMax(200);
@@ -75,42 +77,13 @@ public class EditPicture extends AppCompatActivity {
 
         saveButton = findViewById(R.id.save_button);
 
-    }
-
-    @Override
-    protected void onStart() {
-        super.onStart();
-
-        Intent intent = getIntent();
-        Bundle extras = getIntent().getExtras();
-
-        if (intent.hasExtra(IMAGE)) {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(IMAGE));
-        } else {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
-        }
-
-
-        try {
-            mBitmap = handleSamplingAndRotationBitmap(this, myUri);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        result.setImageBitmap(mBitmap);
-
-    }
-  
-    @Override
-    protected void onResume() {
-        super.onResume();
-
         contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             Bitmap res;
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER, ctx);
-                result.setImageBitmap(res);
+                mImageView.setImageBitmap(res);
                 contrastTextView.setText("contrast: " + (progress));
             }
 
@@ -129,7 +102,7 @@ public class EditPicture extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 res = setFilter(mBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
-                result.setImageBitmap(res);
+                mImageView.setImageBitmap(res);
                 exposureTextView.setText("exposure: " + (progress/100f*3f));
             }
 
@@ -148,7 +121,7 @@ public class EditPicture extends AppCompatActivity {
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 res = setFilter(mBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
-                result.setImageBitmap(res);
+                mImageView.setImageBitmap(res);
                 exposureTextView.setText("Sharpness: " + (progress - 100));
             }
 
@@ -171,17 +144,50 @@ public class EditPicture extends AppCompatActivity {
     }
 
     @Override
+    protected void onStart() {
+        super.onStart();
+
+        Intent intent = getIntent();
+        Bundle extras = getIntent().getExtras();
+
+        if (intent.hasExtra(IMAGE)) {
+            myUri = Uri.parse(Objects.requireNonNull(extras).getString(IMAGE));
+        } else {
+            myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
+        }
+
+        mBitmap = BitmapFactory.decodeFile(getPhotoPath()); //todo make filter class to handle filtering, returning preview, and saving image
+        setPic();
+    }
+
+    private void setPic() {
+        // Get the dimensions of the View
+        int targetW = Utils.getTargetWidth();
+        int targetH = Utils.getTargetHeight();
+
+        // Get the dimensions of the bitmap
+        BitmapFactory.Options bmOptions = new BitmapFactory.Options();
+        bmOptions.inJustDecodeBounds = true;
+        int photoW = bmOptions.outWidth;
+        int photoH = bmOptions.outHeight;
+
+        // Determine how much to scale down the image
+        int scaleFactor = Math.min(photoW/targetW, photoH/targetH);
+
+        // Decode the image file into a Bitmap sized to fill the View
+        bmOptions.inJustDecodeBounds = false;
+        bmOptions.inSampleSize = scaleFactor;
+        bmOptions.inPurgeable = true;
+
+        Bitmap bitmap = BitmapFactory.decodeFile(getPhotoPath(), bmOptions);
+        mImageView.setImageBitmap(bitmap);
+    }
+
+    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.overflow_menu, menu);
         return true;
-    }
-
-    @Override
-    public void onSaveInstanceState(Bundle savedInstanceState) {
-        // Save selective extras from original Intent...
-
-        super.onSaveInstanceState(savedInstanceState);
     }
 
     @Override
@@ -227,7 +233,7 @@ public class EditPicture extends AppCompatActivity {
     /**
      * Calculate an inSampleSize for use in a {@link BitmapFactory.Options} object when decoding
      * bitmaps using the decode* methods from {@link BitmapFactory}. This implementation calculates
-     * the closest inSampleSize that will result in the final decoded bitmap having a width and
+     * the closest inSampleSize that will mImageView in the final decoded bitmap having a width and
      * height equal to or larger than the requested width and height. This implementation does not
      * ensure a power of 2 is returned for inSampleSize which can be faster when decoding but
      * results in a larger bitmap which isn't as useful for caching purposes.

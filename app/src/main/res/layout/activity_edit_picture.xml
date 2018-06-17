@@ -1,14 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:fresco="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".EditPicture">
+    tools:context=".EditPicture"
+    android:padding="8dp">
 
     <ImageView
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
+        android:layout_width="match_parent"
+        android:layout_height="480dp"
         android:adjustViewBounds="true"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
@@ -17,14 +18,14 @@
 
     <Button
         android:id="@+id/save_button"
-        android:layout_width="106dp"
-        android:layout_height="0dp"
-        android:layout_marginBottom="40dp"
-        android:layout_marginEnd="44dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
         android:text="@string/save"
-        android:theme="@style/Save.Button"
-        fresco:layout_constraintBottom_toBottomOf="parent"
-        fresco:layout_constraintEnd_toEndOf="parent" />
+        style="@style/Widget.AppCompat.Button.Colored"/>
 
     <TextView
         android:id="@+id/contrast_label"
@@ -42,28 +43,24 @@
         android:id="@+id/exposure_label"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        fresco:layout_constraintTop_toBottomOf="@+id/contrast_seekbar"
         android:padding="8dp"
         android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
 
     <SeekBar
         android:id="@+id/exposure_seekbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        fresco:layout_constraintTop_toBottomOf="@+id/contrast_seekbar"/>
+        android:layout_height="wrap_content"/>
 
     <TextView
         android:id="@+id/sharpen_label"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        fresco:layout_constraintTop_toBottomOf="@+id/exposure_seekbar"
         android:padding="8dp"
         android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
 
     <SeekBar
         android:id="@+id/sharpen_seekbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        fresco:layout_constraintTop_toBottomOf="@+id/exposure_seekbar"/>
+        android:layout_height="wrap_content"/>
   
-</android.support.constraint.ConstraintLayout>
+</RelativeLayout>
