@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
@@ -14,6 +15,7 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.net.Uri;
 import android.os.Build;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
@@ -42,6 +44,7 @@ public class Utils {
     public static final int CONVOLUTION_SHARPEN = 4;
 
     private static String mCurrentPhotoPath;
+    private static Uri mCurrentPhotoUri;
     private static int imageScaleX;
     private static int imageScaleY;
 
@@ -121,11 +124,23 @@ public class Utils {
 
     }
 
-    public static void setPhotoPath(String path) {
+    public static void setSelectedImageUri(Uri uri) {
+        mCurrentPhotoUri = uri;
+    }
+
+    public static Uri getSelectedImageUri() {
+        return mCurrentPhotoUri;
+    }
+
+    public static void setSelectedImagePath(String path) {
         mCurrentPhotoPath = path;
     }
 
-    public static String getPhotoPath() {
+    public static Bitmap getSelectedImage() {
+        return BitmapFactory.decodeFile(mCurrentPhotoPath);
+    }
+
+    public static String getSelectedImagePath() {
         return mCurrentPhotoPath;
     }
 

@@ -34,21 +34,18 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
 
-import static com.example.android.autoeditor.utils.Utils.setPhotoPath;
+import static com.example.android.autoeditor.utils.Utils.getSelectedImageUri;
+import static com.example.android.autoeditor.utils.Utils.setSelectedImageUri;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String IMAGE = "image";
-    public static final String GALLERY_IMAGE = "galleryImage";
-    public static final int CAMERA_REQUEST_CODE = (int) Math.floor(7*Math.random());
-    public static final int MEDIA_REQUEST_CODE = (int) Math.floor(11*Math.random());
+    public static final String SELECTED_IMAGE_URI = "image";
+    public static final int CAMERA_REQUEST_CODE = (int) Math.floor(7*Math.random()*100);
+    public static final int MEDIA_REQUEST_CODE = (int) Math.floor(11*Math.random()*100);
     public static final String PREF_USER_FIRST_TIME = "user_first_time";
 
     boolean isUserFirstTime;
-    private Intent startEditPictureActivity;
     private Activity mainActivity;
     private ImageButton cameraBtn, galleryBtn;
-
-    Uri photoURI;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,7 +53,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        startEditPictureActivity = new Intent(this, EditPicture.class);
         mainActivity = this;
 
         checkOnboarding();
@@ -136,29 +132,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void cameraIntent(){
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-
-            // Create the File where the photo should go
-            File photoFile = null;
-            try {
-                photoFile = createImageFile();
-            } catch (IOException e) {
-                // Error occurred while creating the File
-                e.printStackTrace();
-            }
-
-            // Continue only if the File was successfully created
-            if (photoFile != null) {
-                photoURI = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, photoFile);
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
-            }
-        }
-    }
-
     private boolean hasPermission(String permission) {
         return ContextCompat.checkSelfPermission(mainActivity, permission) == PackageManager.PERMISSION_GRANTED;
     }
@@ -167,41 +140,85 @@ public class MainActivity extends AppCompatActivity {
         ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
     }
 
-    private void galleryIntent() {//todo
-        Intent getIntent = new Intent(Intent.ACTION_GET_CONTENT);
-        getIntent.setType("image/*");
+    private void cameraIntent(){
+        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
-        Intent pickIntent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        pickIntent.setType("image/*");
+        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
+            File imageFile = null;
 
-        Intent chooserIntent = Intent.createChooser(getIntent, "Select Image");
-        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[] {pickIntent});
-        startActivityForResult(Intent.createChooser(chooserIntent, "Select File"), MEDIA_REQUEST_CODE);
+            try {
+                imageFile = createImageFile();
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+
+            if (imageFile != null) {
+                Uri imageUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, imageFile);
+
+                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+                setSelectedImageUri(imageUri);
+            } else {
+                //todo make alert signaling of no image directory and prompt to maybe make one
+            }
+        }
+    }
+
+    private File createImageFile() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
+        String imageFileName = "AutoEdit_" + timeStamp;
+        String imageFileSuffix = ".jpg";
+        String savePath = "";
+        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+
+        if(storageDir != null) {
+            savePath = storageDir.getPath() + "/AutoEdits";
+        } else {
+            return null;
+        }
+
+        return File.createTempFile(
+                imageFileName,  /* prefix */
+                imageFileSuffix,/* suffix */
+                new File(savePath)      /* directory */
+        );
+    }
+
+    private void galleryIntent() {
+        Intent fileBrowserIntent = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*");//file browser
+        Intent openWithIntent;
+
+        if (fileBrowserIntent.resolveActivity(getPackageManager()) != null) {
+            openWithIntent = Intent.createChooser(fileBrowserIntent, "Select Image From");
+            startActivityForResult(openWithIntent, MEDIA_REQUEST_CODE);
+
+        } else if(fileBrowserIntent.resolveActivity(getPackageManager()) == null) {// user has no file browser so try gallery
+            Intent imageBrowserIntent = new Intent(Intent.ACTION_PICK).setType("image/*");//image browser
+            openWithIntent = Intent.createChooser(imageBrowserIntent, "Select Image From");
+            startActivityForResult(openWithIntent, MEDIA_REQUEST_CODE);
+
+        } else {
+            //todo make dialog signaling to user no file picker or gallery app is available
+        }
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-        Log.d("in", "It is: " + Activity.RESULT_OK);
-        if (requestCode == CAMERA_REQUEST_CODE) {
-            if (resultCode == Activity.RESULT_OK) {
-                try {
-                    // Create the File where the photo should go
-                    startEditPictureActivity.putExtra(IMAGE, photoURI.toString());
-                    startActivity(startEditPictureActivity);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        else if (requestCode == MEDIA_REQUEST_CODE) {
-            if (resultCode == Activity.RESULT_OK) {
-                try {
-                    final Uri imageUri = intent.getData();
-                    startEditPictureActivity.putExtra(GALLERY_IMAGE, Objects.requireNonNull(imageUri).toString());
-                    startActivity(startEditPictureActivity);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
+        Intent sendImageToEditActivity = new Intent(this, EditPicture.class);
+
+        if (requestCode == CAMERA_REQUEST_CODE &&  resultCode == Activity.RESULT_OK) {
+            sendImageToEditActivity.putExtra(SELECTED_IMAGE_URI, getSelectedImageUri().toString());
+            startActivity(sendImageToEditActivity);
+
+        } else if (requestCode == MEDIA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            Uri imageUri = intent.getData();
+
+            if(imageUri != null) {
+                sendImageToEditActivity.putExtra(SELECTED_IMAGE_URI, imageUri.toString());
+                startActivity(sendImageToEditActivity);
+            } else {
+                //todo alert user something isnt right and couldnt get selected image
             }
         }
         super.onActivityResult(requestCode, resultCode, intent);
@@ -272,21 +289,5 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }
-    }
-
-    private File createImageFile() throws IOException {
-        // Create an image file name
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile(
-                imageFileName,  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
-        );
-        // Save a file: path for use with ACTION_VIEW intents
-        setPhotoPath(image.getAbsolutePath());
-
-        return image;
     }
 }

@@ -19,6 +19,7 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
+import com.example.android.autoeditor.filters.Editor;
 import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
@@ -29,13 +30,9 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
 
-import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
-import static com.example.android.autoeditor.MainActivity.IMAGE;
-import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
-import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
-import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
-import static com.example.android.autoeditor.utils.Utils.getPhotoPath;
-import static com.example.android.autoeditor.utils.Utils.setFilter;
+import static com.example.android.autoeditor.MainActivity.SELECTED_IMAGE_URI;
+import static com.example.android.autoeditor.utils.Utils.getSelectedImage;
+import static com.example.android.autoeditor.utils.Utils.getSelectedImagePath;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
@@ -44,10 +41,15 @@ public class EditPicture extends AppCompatActivity {
     SeekBar contrastSeekbar;
     SeekBar exposureSeekbar;
     SeekBar sharpenSeekbar;
+    SeekBar saturationSeekbar;
     TextView contrastTextView;
     TextView exposureTextView;
     TextView sharpenTextView;
+    TextView saturationTextView;
     Bitmap mBitmap;
+    private Editor imageEditor;
+    private TextView seekbarLabel;
+    private SeekBar.OnSeekBarChangeListener listener;
 
     Context ctx;
 
@@ -57,8 +59,8 @@ public class EditPicture extends AppCompatActivity {
         setContentView(R.layout.activity_edit_picture);
         ctx = getApplicationContext();
 
-        //tries the receive the intent on photo taken
         mImageView = findViewById(R.id.selected_picture_image_view);
+        imageEditor = new Editor(getSelectedImage(), this);
 
         //Start of test sliders etc
         contrastTextView = findViewById(R.id.contrast_label);
@@ -67,73 +69,19 @@ public class EditPicture extends AppCompatActivity {
         sharpenSeekbar = findViewById(R.id.sharpen_seekbar);
         exposureTextView = findViewById(R.id.exposure_label);
         exposureSeekbar = findViewById(R.id.exposure_seekbar);
+        saturationTextView = findViewById(R.id.saturation_label);
+        saturationSeekbar = findViewById(R.id.saturation_seekbar);
 
         contrastSeekbar.setMax(200);
         exposureSeekbar.setMax(200);
         sharpenSeekbar.setMax(200);
+        saturationSeekbar.setMax(200);
         contrastSeekbar.setProgress(100);
         exposureSeekbar.setProgress(100);
         sharpenSeekbar.setProgress(100);
+        saturationSeekbar.setProgress(100);
 
         saveButton = findViewById(R.id.save_button);
-
-        contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            Bitmap res;
-
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER, ctx);
-                mImageView.setImageBitmap(res);
-                contrastTextView.setText("contrast: " + (progress));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-
-        exposureSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            Bitmap res;
-
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
-                mImageView.setImageBitmap(res);
-                exposureTextView.setText("exposure: " + (progress/100f*3f));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-
-        sharpenSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            Bitmap res;
-
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
-                mImageView.setImageBitmap(res);
-                exposureTextView.setText("Sharpness: " + (progress - 100));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-
         saveButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -141,22 +89,41 @@ public class EditPicture extends AppCompatActivity {
                 saveImage();
             }
         });
-    }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
+        listener = new SeekBar.OnSeekBarChangeListener() {
+            @Override
+            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
+                progress -= 100;
+                imageEditor.setFilterStrength(progress, seekBar.getId());
+
+                mImageView.setImageBitmap(imageEditor.getActivityBitmap());
+                seekbarLabel.setText(imageEditor.getSeekbarLabel(progress, seekBar.getId()));
+            }
+
+            @Override
+            public void onStartTrackingTouch(SeekBar seekBar) {
+                seekbarLabel = getSeekbarTextView(seekBar.getId());
+            }
+
+            @Override
+            public void onStopTrackingTouch(SeekBar seekBar) {
+            }
+        };
+
+        contrastSeekbar.setOnSeekBarChangeListener(listener);
+        exposureSeekbar.setOnSeekBarChangeListener(listener);
+        sharpenSeekbar.setOnSeekBarChangeListener(listener);
+        saturationSeekbar.setOnSeekBarChangeListener(listener);
 
         Intent intent = getIntent();
         Bundle extras = getIntent().getExtras();
 
-        if (intent.hasExtra(IMAGE)) {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(IMAGE));
+        if (intent.hasExtra(SELECTED_IMAGE_URI)) {
+            myUri = Uri.parse(Objects.requireNonNull(extras).getString(SELECTED_IMAGE_URI));
         } else {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
+            //myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
         }
 
-        mBitmap = BitmapFactory.decodeFile(getPhotoPath()); //todo make filter class to handle filtering, returning preview, and saving image
         setPic();
     }
 
@@ -179,7 +146,7 @@ public class EditPicture extends AppCompatActivity {
         bmOptions.inSampleSize = scaleFactor;
         bmOptions.inPurgeable = true;
 
-        Bitmap bitmap = BitmapFactory.decodeFile(getPhotoPath(), bmOptions);
+        Bitmap bitmap = BitmapFactory.decodeFile(getSelectedImagePath(), bmOptions);
         mImageView.setImageBitmap(bitmap);
     }
 
@@ -369,7 +336,31 @@ public class EditPicture extends AppCompatActivity {
         Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
         File f = new File(imageUri.getPath());
         Uri contentUri = Uri.fromFile(f);
-        mediaScanIntent.setData(contentUri);
+        mediaScanIntent.setData(contentUri);//todo cant it just be imageUri?
         this.sendBroadcast(mediaScanIntent);
+    }
+
+    private TextView getSeekbarTextView(int activeSeekbar) {
+        TextView seekbarLabel = null;
+
+        switch (activeSeekbar) {
+            case R.id.contrast_seekbar:
+                seekbarLabel = findViewById(R.id.contrast_label);
+                break;
+
+            case R.id.exposure_seekbar:
+                seekbarLabel = findViewById(R.id.exposure_label);
+                break;
+
+            case R.id.sharpen_seekbar:
+                seekbarLabel = findViewById(R.id.sharpen_label);
+                break;
+
+            case R.id.saturation_seekbar:
+                seekbarLabel = findViewById(R.id.saturation_label);
+                break;
+        }
+
+        return seekbarLabel;
     }
 }
