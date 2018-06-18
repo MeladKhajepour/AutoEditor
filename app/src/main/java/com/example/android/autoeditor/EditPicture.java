@@ -1,8 +1,10 @@
 package com.example.android.autoeditor;
 
 import android.annotation.SuppressLint;
+import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
+import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -18,10 +20,12 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
+import android.provider.MediaStore;
 import android.support.annotation.RequiresApi;
 import android.support.media.ExifInterface;
 import android.support.v7.app.AppCompatActivity;
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.Size;
 import android.util.TypedValue;
 import android.view.Display;
@@ -36,12 +40,17 @@ import android.widget.Toast;
 import com.example.android.autoeditor.env.BorderedText;
 import com.example.android.autoeditor.env.ImageUtils;
 import com.example.android.autoeditor.env.Logger;
+import com.example.android.autoeditor.OverlayView.DrawCallback;
+import com.example.android.autoeditor.tracking.MultiBoxTracker;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
@@ -61,10 +70,10 @@ import static com.example.android.autoeditor.utils.Utils.setFilter;
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class EditPicture extends AppCompatActivity {
     private static final Logger LOGGER = new Logger();
-
-    private static final int TF_OD_API_INPUT_SIZE = 600;
+    private MultiBoxTracker tracker;
+    private static final int TF_OD_API_INPUT_SIZE = 300;
     private static final String TF_OD_API_MODEL_FILE =
-            "ssd_mobilenet_v1_android_export.pb";
+            "mobilenet_ssd.tflite";
     private static final String TF_OD_API_LABELS_FILE = "coco_labels_list.txt";
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
     private static final boolean MAINTAIN_ASPECT = false;
@@ -80,8 +89,8 @@ public class EditPicture extends AppCompatActivity {
     private final Paint boxPaint = new Paint();
     private Integer sensorOrientation;
     private Classifier detector;
-    private int previewWidth = 0;
-    private int previewHeight = 0;
+    private int previewWidth;
+    private int previewHeight;
     private Bitmap rgbFrameBitmap = null;
     private Bitmap croppedBitmap = null;
     private Matrix frameToCropTransform;
@@ -97,6 +106,7 @@ public class EditPicture extends AppCompatActivity {
     private HandlerThread handlerThread;
     protected Runnable postInferenceCallback;
     protected byte[][] yuvBytes = new byte[3][];
+    private long timestamp = 0;
 
     Button saveButton;
     ImageView result;
@@ -108,6 +118,7 @@ public class EditPicture extends AppCompatActivity {
     TextView exposureTextView;
     TextView sharpenTextView;
     Bitmap mBitmap;
+    Bitmap scaledBitmap;
 
     Context ctx;
 
@@ -159,15 +170,10 @@ public class EditPicture extends AppCompatActivity {
             e.printStackTrace();
         }
 
-        handlerThread = new HandlerThread("inference");
-        handlerThread.start();
-        handler = new Handler(handlerThread.getLooper());
-
         recognize();
-        result.setImageBitmap(mBitmap);
-
+        processImageRGBbytes();
     }
-  
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -178,7 +184,7 @@ public class EditPicture extends AppCompatActivity {
             @SuppressLint("SetTextI18n")
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, CONTRAST_FILTER, ctx);
+                res = setFilter(scaledBitmap, progress - 100, CONTRAST_FILTER, ctx);
                 result.setImageBitmap(res);
                 contrastTextView.setText("contrast: " + (progress));
             }
@@ -198,7 +204,7 @@ public class EditPicture extends AppCompatActivity {
             @SuppressLint("SetTextI18n")
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
+                res = setFilter(scaledBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
                 result.setImageBitmap(res);
                 exposureTextView.setText("exposure: " + (progress/100f*3f));
             }
@@ -218,7 +224,7 @@ public class EditPicture extends AppCompatActivity {
             @SuppressLint("SetTextI18n")
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(mBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
+                res= setFilter(scaledBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
                 result.setImageBitmap(res);
                 exposureTextView.setText("Sharpness: " + (progress - 100));
             }
@@ -293,10 +299,8 @@ public class EditPicture extends AppCompatActivity {
      * @param selectedImage The Image URI
      * @return Bitmap image results
      */
-    public static Bitmap handleSamplingAndRotationBitmap(Context context, Uri selectedImage)
+    public Bitmap handleSamplingAndRotationBitmap(Context context, Uri selectedImage)
             throws IOException {
-        int MAX_HEIGHT = 1024;
-        int MAX_WIDTH = 1024;
 
         // First decode with inJustDecodeBounds=true to check dimensions
         final BitmapFactory.Options options = new BitmapFactory.Options();
@@ -304,9 +308,8 @@ public class EditPicture extends AppCompatActivity {
         InputStream imageStream = context.getContentResolver().openInputStream(selectedImage);
         BitmapFactory.decodeStream(imageStream, null, options);
         Objects.requireNonNull(imageStream).close();
-
-        // Calculate inSampleSize
-        options.inSampleSize = calculateInSampleSize(options, MAX_WIDTH, MAX_HEIGHT);
+        previewHeight = options.outHeight;
+        previewWidth  = options.outWidth;
 
         // Decode bitmap with inSampleSize set
         options.inJustDecodeBounds = false;
@@ -317,54 +320,6 @@ public class EditPicture extends AppCompatActivity {
         return img;
     }
 
-    /**
-     * Calculate an inSampleSize for use in a {@link BitmapFactory.Options} object when decoding
-     * bitmaps using the decode* methods from {@link BitmapFactory}. This implementation calculates
-     * the closest inSampleSize that will result in the final decoded bitmap having a width and
-     * height equal to or larger than the requested width and height. This implementation does not
-     * ensure a power of 2 is returned for inSampleSize which can be faster when decoding but
-     * results in a larger bitmap which isn't as useful for caching purposes.
-     *
-     * @param options   An options object with out* params already populated (run through a decode*
-     *                  method with inJustDecodeBounds==true
-     * @param reqWidth  The requested width of the resulting bitmap
-     * @param reqHeight The requested height of the resulting bitmap
-     * @return The value to be used for inSampleSize
-     */
-    private static int calculateInSampleSize(BitmapFactory.Options options,
-                                             int reqWidth, int reqHeight) {
-        // Raw height and width of image
-        final int height = options.outHeight;
-        final int width = options.outWidth;
-        int inSampleSize = 1;
-
-        if (height > reqHeight || width > reqWidth) {
-
-            // Calculate ratios of height and width to requested height and width
-            final int heightRatio = Math.round((float) height / (float) reqHeight);
-            final int widthRatio = Math.round((float) width / (float) reqWidth);
-
-            // Choose the smallest ratio as inSampleSize value, this will guarantee a final image
-            // with both dimensions larger than or equal to the requested height and width.
-            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
-
-            // This offers some additional logic in case the image has a strange
-            // aspect ratio. For example, a panorama may have a much larger
-            // width than height. In these cases the total pixels might still
-            // end up being too large to fit comfortably in memory, so we should
-            // be more aggressive with sample down the image (=larger inSampleSize).
-
-            final float totalPixels = width * height;
-
-            // Anything more than 2x the requested pixels we'll sample down further
-            final float totalReqPixelsCap = reqWidth * reqHeight * 2;
-
-            while (totalPixels / (inSampleSize * inSampleSize) > totalReqPixelsCap) {
-                inSampleSize++;
-            }
-        }
-        return inSampleSize;
-    }
 
     /**
      * Rotate an image if required.
@@ -461,8 +416,6 @@ public class EditPicture extends AppCompatActivity {
     }
 
     public void recognize() {
-
-        int[] rgbBytes;
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         mBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
         byte[] byteArray = stream.toByteArray();
@@ -474,9 +427,11 @@ public class EditPicture extends AppCompatActivity {
         borderedText = new BorderedText(textSizePx);
         borderedText.setTypeface(Typeface.MONOSPACE);
 
+        tracker = new MultiBoxTracker(this);
+
         try {
-            detector = TensorFlowObjectDetectionAPIModel.create(
-                    getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
+            detector = TFLiteObjectDetectionAPIModel.create(
+                    getApplicationContext().getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
         } catch (final IOException e) {
             LOGGER.e("Exception initializing classifier!", e);
             Toast toast =
@@ -486,19 +441,9 @@ public class EditPicture extends AppCompatActivity {
             finish();
         }
 
-        previewWidth = mBitmap.getWidth();
-        previewHeight = mBitmap.getHeight();
-
         final Display display = getWindowManager().getDefaultDisplay();
 
         sensorOrientation = display.getRotation();
-
-
-        rgbBytes = new int[previewWidth * previewHeight];
-        ImageUtils.convertYUV420SPToARGB8888(byteArray, rgbBytes, previewWidth, previewHeight, false);
-        LOGGER.i("Initializing at size %dx%d", previewWidth, previewHeight);
-        rgbFrameBitmap = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
-        croppedBitmap = Bitmap.createBitmap(TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE, Bitmap.Config.ARGB_8888);
 
         frameToCropTransform =
                 ImageUtils.getTransformationMatrix(
@@ -509,45 +454,44 @@ public class EditPicture extends AppCompatActivity {
         cropToFrameTransform = new Matrix();
         frameToCropTransform.invert(cropToFrameTransform);
 
-        addCallback(
-                new OverlayView.DrawCallback() {
-                    @Override
-                    public void drawCallback(final Canvas canvas) {
-                        renderDebug(canvas);
-                    }
-                });
-
-        boxPaint.setColor(Color.RED);
-        boxPaint.setStyle(Paint.Style.STROKE);
-        boxPaint.setStrokeWidth(8.0f);
         detectionOverlay = findViewById(R.id.detection_overlay);
         detectionOverlay.addCallback(
-                new OverlayView.DrawCallback() {
+                new DrawCallback() {
                     @Override
                     public void drawCallback(final Canvas canvas) {
-                        renderOverlay(canvas);
+                        tracker.draw(canvas);
+                        if (isDebug()) {
+                            tracker.drawDebug(canvas);
+                        }
                     }
                 });
-        processImageRGBbytes(rgbBytes);
     }
 
-    protected void processImageRGBbytes(int[] rgbBytes) {
-        rgbFrameBitmap.setPixels(rgbBytes, 0, previewWidth, 0, 0, previewWidth, previewHeight);
-        final Canvas canvas = new Canvas(croppedBitmap);
-        canvas.drawBitmap(rgbFrameBitmap, frameToCropTransform, null);
+    protected void processImageRGBbytes() {
+        detectionOverlay.postInvalidate();
+        mBitmap = Bitmap.createScaledBitmap(mBitmap,TF_OD_API_INPUT_SIZE,TF_OD_API_INPUT_SIZE,true);
+        handler = new Handler();
 
-        final Canvas tempCanvas = new Canvas(croppedBitmap);
-        tempCanvas.drawBitmap(mBitmap, 0, 0, new Paint());
 
-        runInBackground(
-                new Runnable() {
+        new Thread(new Runnable() {
+            @Override
+            public void run () {
+                // Perform long-running task here
+                // (like audio buffering).
+                // you may want to update some progress
+                // bar every second, so use handler:
+                handler.post(new Runnable() {
                     @Override
-                    public void run() {
+                    public void run () {
+                        // make operation on UI - on example
+                        // on progress bar.
+
                         final long startTime = SystemClock.uptimeMillis();
-                        final List<Classifier.Recognition> results = detector.recognizeImage(croppedBitmap);
+                        final List<Classifier.Recognition> results = detector.recognizeImage(mBitmap);
                         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
                         LOGGER.i("Detect: %s", results);
-                        cropCopyBitmap = Bitmap.createBitmap(croppedBitmap);
+                        croppedBitmap = Bitmap.createBitmap(mBitmap);
+                        Bitmap cropCopyBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true);
                         final Canvas canvas = new Canvas(cropCopyBitmap);
                         canvas.drawBitmap(cropCopyBitmap, 0, 0, new Paint());
                         final Paint paint = new Paint();
@@ -565,108 +509,33 @@ public class EditPicture extends AppCompatActivity {
                                 mappedRecognitions.add(result);
                             }
                         }
-
-                        mBitmap = cropCopyBitmap;
-                        requestRender();
                         detectionOverlay.postInvalidate();
-                        if (postInferenceCallback != null) {
-                            postInferenceCallback.run();
-                        }
+                        scaledBitmap = getResizedBitmap(cropCopyBitmap,previewHeight, previewWidth);
+                        result.setImageBitmap(scaledBitmap);
+
                     }
                 });
-    }
-
-
-
-    private void renderOverlay(final Canvas canvas) {
-        final float multiplier =
-                Math.min(canvas.getWidth() / (float) previewHeight, canvas.getHeight() / (float) previewWidth);
-        Matrix frameToCanvasMatrix =
-                ImageUtils.getTransformationMatrix(
-                        previewWidth,
-                        previewHeight,
-                        (int) (multiplier * previewHeight),
-                        (int) (multiplier * previewWidth),
-                        sensorOrientation,
-                        false);
-        int count = 0;
-        for (final Classifier.Recognition recognition : mappedRecognitions) {
-            final RectF location = new RectF(recognition.getLocation());
-
-            frameToCanvasMatrix.mapRect(location);
-            boxPaint.setColor(COLORS[count]);
-            count = (count + 1) % COLORS.length;
-
-            final float cornerSize = Math.min(location.width(), location.height()) / 8.0f;
-            canvas.drawRoundRect(location, cornerSize, cornerSize, boxPaint);
-
-            @SuppressLint("DefaultLocale") final String labelString =
-                    !TextUtils.isEmpty(recognition.getTitle())
-                            ? String.format("%s %.2f", recognition.getTitle(), recognition.getConfidence())
-                            : String.format("%.2f", recognition.getConfidence());
-            borderedText.drawText(canvas, location.left + cornerSize, location.bottom, labelString);
-        }
-    }
-
-    private void renderDebug(final Canvas canvas) {
-        if (!isDebug()) {
-            return;
-        }
-        final Bitmap copy = cropCopyBitmap;
-        if (copy == null) {
-            return;
-        }
-
-        final int backgroundColor = Color.argb(100, 0, 0, 0);
-        canvas.drawColor(backgroundColor);
-
-        final Matrix matrix = new Matrix();
-        final float scaleFactor = 2;
-        matrix.postScale(scaleFactor, scaleFactor);
-        matrix.postTranslate(
-                canvas.getWidth() - copy.getWidth() * scaleFactor,
-                canvas.getHeight() - copy.getHeight() * scaleFactor);
-        canvas.drawBitmap(copy, matrix, new Paint());
-
-        final Vector<String> lines = new Vector<>();
-        if (detector != null) {
-            final String statString = detector.getStatString();
-            final String[] statLines = statString.split("\n");
-            Collections.addAll(lines, statLines);
-        }
-        lines.add("");
-
-        lines.add("Frame: " + previewWidth + "x" + previewHeight);
-        lines.add("Crop: " + copy.getWidth() + "x" + copy.getHeight());
-        lines.add("View: " + canvas.getWidth() + "x" + canvas.getHeight());
-        lines.add("Rotation: " + sensorOrientation);
-        lines.add("Inference time: " + lastProcessingTimeMs + "ms");
-
-        borderedText.drawLines(canvas, 10, canvas.getHeight() - 10, lines);
+            }
+        }).start();
     }
 
     public boolean isDebug() {
         return debug;
+   }
+
+    public Bitmap getResizedBitmap(Bitmap bm, int newHeight, int newWidth)
+    {
+        int width = bm.getWidth();
+        int height = bm.getHeight();
+        float scaleWidth = ((float) newWidth) / width;
+        float scaleHeight = ((float) newHeight) / height;
+        // create a matrix for the manipulation
+        Matrix matrix = new Matrix();
+        // resize the bit map
+        matrix.postScale(scaleWidth, scaleHeight);
+        // recreate the new Bitmap
+        return Bitmap.createBitmap(bm, 0, 0, width, height, matrix, false);
     }
 
-    public void requestRender() {
-        final OverlayView overlay = findViewById(R.id.debug_overlay);
-        if (overlay != null) {
-            overlay.postInvalidate();
-        }
-    }
-
-    public void addCallback(final OverlayView.DrawCallback callback) {
-        final OverlayView overlay = findViewById(R.id.debug_overlay);
-        if (overlay != null) {
-            overlay.addCallback(callback);
-        }
-    }
-
-    protected synchronized void runInBackground(final Runnable r) {
-        if (handler != null) {
-            handler.post(r);
-        }
-    }
 
 }

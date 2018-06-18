@@ -20,6 +20,11 @@ android {
             debuggable true
         }
     }
+
+    aaptOptions {
+        noCompress "tflite"
+    }
+
     externalNativeBuild {
         cmake {
             path 'src/main/jni/CMakeLists.txt'
@@ -34,7 +39,7 @@ dependencies {
     implementation 'com.android.support.constraint:constraint-layout:1.1.1'
     implementation 'com.android.support:design:27.1.1'
     //noinspection GradleDynamicVersion
-    implementation 'org.tensorflow:tensorflow-android:+'
+    implementation 'org.tensorflow:tensorflow-lite:+'
     testImplementation 'junit:junit:4.12'
     androidTestImplementation 'com.android.support.test:runner:1.0.2'
     androidTestImplementation 'com.android.support.test.espresso:espresso-core:3.0.2'

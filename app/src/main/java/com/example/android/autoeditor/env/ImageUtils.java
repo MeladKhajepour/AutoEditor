@@ -21,14 +21,11 @@ import android.os.Environment;
 import java.io.File;
 import java.io.FileOutputStream;
 
-/**
- * Utility class for manipulating images.
- **/
 @SuppressWarnings("JniMissingFunction")
 public class ImageUtils {
   @SuppressWarnings("unused")
   private static final Logger LOGGER = new Logger();
-  
+
   static {
     try {
       System.loadLibrary("tensorflow_demo");
@@ -57,46 +54,74 @@ public class ImageUtils {
    *
    * @param bitmap The bitmap to save.
    */
-  public static void saveBitmap(final Bitmap bitmap) {
-    saveBitmap(bitmap, "preview.png");
-  }
 
-  /**
-   * Saves a Bitmap object to disk for analysis.
-   *
-   * @param bitmap The bitmap to save.
-   * @param filename The location to save the bitmap to.
-   */
-  private static void saveBitmap(final Bitmap bitmap, final String filename) {
-    final String root =
-        Environment.getExternalStorageDirectory().getAbsolutePath() + File.separator + "tensorflow";
-    LOGGER.i("Saving %dx%d bitmap to %s.", bitmap.getWidth(), bitmap.getHeight(), root);
-    final File myDir = new File(root);
-
-    if (!myDir.mkdirs()) {
-      LOGGER.i("Make dir failed");
-    }
-
-      final File file = new File(myDir, filename);
-    if (file.exists()) {
-      file.delete();
-    }
-    try {
-      final FileOutputStream out = new FileOutputStream(file);
-      bitmap.compress(Bitmap.CompressFormat.PNG, 99, out);
-      out.flush();
-      out.close();
-    } catch (final Exception e) {
-      LOGGER.e(e, "Exception!");
-    }
-  }
 
   // This value is 2 ^ 18 - 1, and is used to clamp the RGB values before their ranges
   // are normalized to eight bits.
   private static final int kMaxChannelValue = 262143;
 
   // Always prefer the native implementation if available.
-  private static boolean useNativeConversion = true;
+  private static boolean useNativeConversion = false;
+
+  public static void convertYUV420SPToARGB8888(
+      byte[] input,
+      int width,
+      int height,
+      int[] output) {
+    if (useNativeConversion) {
+      try {
+        ImageUtils.convertYUV420SPToARGB8888(input, output, width, height, false);
+        return;
+      } catch (UnsatisfiedLinkError e) {
+        LOGGER.w(
+            "Native YUV420SP -> RGB implementation not found, falling back to Java implementation");
+        useNativeConversion = false;
+      }
+    }
+
+    // Java implementation of YUV420SP to ARGB8888 converting
+    final int frameSize = width * height;
+    for (int j = 0, yp = 0; j < height; j++) {
+      int uvp = frameSize + (j >> 1) * width;
+      int u = 0;
+      int v = 0;
+
+      for (int i = 0; i < width; i++, yp++) {
+        int y = 0xff & input[yp];
+        if ((i & 1) == 0) {
+          v = 0xff & input[uvp++];
+          u = 0xff & input[uvp++];
+        }
+
+        output[yp] = YUV2RGB(y, u, v);
+      }
+    }
+  }
+
+  private static int YUV2RGB(int y, int u, int v) {
+    // Adjust and check YUV values
+    y = (y - 16) < 0 ? 0 : (y - 16);
+    u -= 128;
+    v -= 128;
+
+    // This is the floating point equivalent. We do the conversion in integer
+    // because some Android devices do not have floating point in hardware.
+    // nR = (int)(1.164 * nY + 2.018 * nU);
+    // nG = (int)(1.164 * nY - 0.813 * nV - 0.391 * nU);
+    // nB = (int)(1.164 * nY + 1.596 * nV);
+    int y1192 = 1192 * y;
+    int r = (y1192 + 1634 * v);
+    int g = (y1192 - 833 * v - 400 * u);
+    int b = (y1192 + 2066 * u);
+
+    // Clipping RGB values to be inside boundaries [ 0 , kMaxChannelValue ]
+    r = r > kMaxChannelValue ? kMaxChannelValue : (r < 0 ? 0 : r);
+    g = g > kMaxChannelValue ? kMaxChannelValue : (g < 0 ? 0 : g);
+    b = b > kMaxChannelValue ? kMaxChannelValue : (b < 0 ? 0 : b);
+
+    return 0xff000000 | ((r << 6) & 0xff0000) | ((g >> 2) & 0xff00) | ((b >> 10) & 0xff);
+  }
+
 
   public static void convertYUV420ToARGB8888(
       byte[] yData,
@@ -114,55 +139,28 @@ public class ImageUtils {
             yData, uData, vData, out, width, height, yRowStride, uvRowStride, uvPixelStride, false);
         return;
       } catch (UnsatisfiedLinkError e) {
-        LOGGER.w("Native YUV -> RGB implementation not found, falling back to Java implementation");
+        LOGGER.w(
+            "Native YUV420 -> RGB implementation not found, falling back to Java implementation");
         useNativeConversion = false;
       }
     }
 
-    int i = 0;
-    for (int y = 0; y < height; y++) {
-      int pY = yRowStride * y;
-      int uv_row_start = uvRowStride * (y >> 1);
-        int pV = uv_row_start;
+    int yp = 0;
+    for (int j = 0; j < height; j++) {
+      int pY = yRowStride * j;
+      int pUV = uvRowStride * (j >> 1);
 
-      for (int x = 0; x < width; x++) {
-        int uv_offset = uv_row_start + (x >> 1) * uvPixelStride;
-        out[i++] =
-            YUV2RGB(
-                convertByteToInt(yData, pY + x),
-                convertByteToInt(uData, uv_offset),
-                convertByteToInt(vData, uv_offset));
+      for (int i = 0; i < width; i++) {
+        int uv_offset = pUV + (i >> 1) * uvPixelStride;
+
+        out[yp++] = YUV2RGB(
+            0xff & yData[pY + i],
+            0xff & uData[uv_offset],
+            0xff & vData[uv_offset]);
       }
     }
   }
 
-  private static int convertByteToInt(byte[] arr, int pos) {
-    return arr[pos] & 0xFF;
-  }
-
-  private static int YUV2RGB(int nY, int nU, int nV) {
-    nY -= 16;
-    nU -= 128;
-    nV -= 128;
-    if (nY < 0) nY = 0;
-
-    // This is the floating point equivalent. We do the conversion in integer
-    // because some Android devices do not have floating point in hardware.
-    // nR = (int)(1.164 * nY + 2.018 * nU);
-    // nG = (int)(1.164 * nY - 0.813 * nV - 0.391 * nU);
-    // nB = (int)(1.164 * nY + 1.596 * nV);
-
-    final int foo = 1192 * nY;
-    int nR = foo + 1634 * nV;
-    int nG = foo - 833 * nV - 400 * nU;
-    int nB = foo + 2066 * nU;
-
-    nR = Math.min(kMaxChannelValue, Math.max(0, nR));
-    nG = Math.min(kMaxChannelValue, Math.max(0, nG));
-    nB = Math.min(kMaxChannelValue, Math.max(0, nB));
-
-    return 0xff000000 | ((nR << 6) & 0x00ff0000) | ((nG >> 2) & 0x0000FF00) | ((nB >> 10) & 0xff);
-  }
 
   /**
    * Converts YUV420 semi-planar data to ARGB 8888 data using the supplied width and height. The
@@ -175,7 +173,7 @@ public class ImageUtils {
    * @param height The height of the input image.
    * @param halfSize If true, downsample to 50% in each dimension, otherwise not.
    */
-  public static native void convertYUV420SPToARGB8888(
+  private static native void convertYUV420SPToARGB8888(
       byte[] input, int[] output, int width, int height, boolean halfSize);
 
   /**
@@ -187,7 +185,7 @@ public class ImageUtils {
    * @param halfSize If true, downsample to 50% in each dimension, otherwise not.
    * @param output A pre-allocated array for the ARGB 8:8:8:8 output data.
    */
-  public static native void convertYUV420ToARGB8888(
+  private static native void convertYUV420ToARGB8888(
       byte[] y,
       byte[] u,
       byte[] v,
@@ -209,7 +207,7 @@ public class ImageUtils {
    * @param width The width of the input image.
    * @param height The height of the input image.
    */
-  public static native void convertYUV420SPToRGB565(
+  private static native void convertYUV420SPToRGB565(
       byte[] input, byte[] output, int width, int height);
 
   /**
@@ -222,7 +220,7 @@ public class ImageUtils {
    * @param width The width of the input image.
    * @param height The height of the input image.
    */
-  public static native void convertARGB8888ToYUV420SP(
+  private static native void convertARGB8888ToYUV420SP(
       int[] input, byte[] output, int width, int height);
 
   /**
@@ -235,7 +233,7 @@ public class ImageUtils {
    * @param width The width of the input image.
    * @param height The height of the input image.
    */
-  public static native void convertRGB565ToYUV420SP(
+  private static native void convertRGB565ToYUV420SP(
       byte[] input, byte[] output, int width, int height);
 
   /**
@@ -262,6 +260,10 @@ public class ImageUtils {
     final Matrix matrix = new Matrix();
 
     if (applyRotation != 0) {
+      if (applyRotation % 90 != 0) {
+        LOGGER.w("Rotation of %d % 90 != 0", applyRotation);
+      }
+
       // Translate so center of image is at origin.
       matrix.postTranslate(-srcWidth / 2.0f, -srcHeight / 2.0f);
 
