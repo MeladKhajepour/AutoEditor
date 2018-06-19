@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
@@ -28,11 +27,9 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.view.View;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.example.android.autoeditor.MainActivity.CAMERA_REQUEST_CODE;
-import static com.example.android.autoeditor.MainActivity.MEDIA_REQUEST_CODE;
 
 public class Utils {
 
@@ -43,8 +40,6 @@ public class Utils {
     public static final int UNSHARP_MASK_SHARPEN = 3;
     public static final int CONVOLUTION_SHARPEN = 4;
 
-    private static String mCurrentPhotoPath;
-    private static Uri mCurrentPhotoUri;
     private static int imageScaleX;
     private static int imageScaleY;
 
@@ -68,19 +63,6 @@ public class Utils {
 
     public static void requestPermissionList(Activity ctx, List<String> permissions) {
         ActivityCompat.requestPermissions(ctx, permissions.toArray(new String[permissions.size()]), 0);
-    }
-
-    public static int getRequestCode(String perm) {
-        switch(perm) {
-            case Manifest.permission.CAMERA:
-                return CAMERA_REQUEST_CODE;
-
-            case Manifest.permission.WRITE_EXTERNAL_STORAGE:
-                return MEDIA_REQUEST_CODE;
-
-            default:
-                return -1;
-        }
     }
 
     public static boolean allPermissionsGranted(Activity ctx) {
@@ -122,26 +104,6 @@ public class Utils {
             activity.getWindow().setStatusBarColor(Color.HSVToColor(hsv));
         }
 
-    }
-
-    public static void setSelectedImageUri(Uri uri) {
-        mCurrentPhotoUri = uri;
-    }
-
-    public static Uri getSelectedImageUri() {
-        return mCurrentPhotoUri;
-    }
-
-    public static void setSelectedImagePath(String path) {
-        mCurrentPhotoPath = path;
-    }
-
-    public static Bitmap getSelectedImage() {
-        return BitmapFactory.decodeFile(mCurrentPhotoPath);
-    }
-
-    public static String getSelectedImagePath() {
-        return mCurrentPhotoPath;
     }
 
     public static void setViewDimens(View view) {

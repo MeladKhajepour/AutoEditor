@@ -30,6 +30,8 @@ import com.example.android.autoeditor.utils.Utils;
 import java.util.ArrayList;
 import java.util.List;
 
+import static com.example.android.autoeditor.utils.Utils.saveSharedSetting;
+
 public class Onboarding extends AppCompatActivity {
 
     /**
@@ -164,7 +166,7 @@ public class Onboarding extends AppCompatActivity {
         mFinishBtn.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Utils.saveSharedSetting(Onboarding.this, MainActivity.PREF_USER_FIRST_TIME, "false");
+                saveSharedSetting(Onboarding.this, MainActivity.PREF_USER_FIRST_TIME, "false");
 
                 if(Utils.allPermissionsGranted(onboardingActivity)) {
                     finish();

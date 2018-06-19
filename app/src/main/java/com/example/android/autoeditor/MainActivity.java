@@ -17,28 +17,29 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewTreeObserver;
 import android.widget.ImageButton;
+import android.widget.Toast;
 
+import com.example.android.autoeditor.filters.Editor;
 import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
-import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
 import java.util.Locale;
-import java.util.Objects;
 
-import static com.example.android.autoeditor.utils.Utils.getSelectedImageUri;
-import static com.example.android.autoeditor.utils.Utils.setSelectedImageUri;
+import static com.example.android.autoeditor.filters.Editor.getImageUri;
+import static com.example.android.autoeditor.filters.Editor.setImageUri;
+import static com.example.android.autoeditor.utils.Utils.readSharedSetting;
+import static com.example.android.autoeditor.utils.Utils.setViewDimens;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String SELECTED_IMAGE_URI = "image";
+    public static final String SELECTED_IMAGE_URI = "image_uri";
     public static final int CAMERA_REQUEST_CODE = (int) Math.floor(7*Math.random()*100);
     public static final int MEDIA_REQUEST_CODE = (int) Math.floor(11*Math.random()*100);
     public static final String PREF_USER_FIRST_TIME = "user_first_time";
@@ -56,7 +57,8 @@ public class MainActivity extends AppCompatActivity {
         mainActivity = this;
 
         checkOnboarding();
-        init();
+        calculateImageViewSize();
+        initOnClickListeners();
     }
 
     @Override
@@ -84,52 +86,59 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkOnboarding() {
-        isUserFirstTime = Boolean.valueOf(Utils.readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
+        isUserFirstTime = Boolean.valueOf(readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
 
         if (isUserFirstTime) {
-            Intent introIntent = new Intent(MainActivity.this, Onboarding.class);
-            introIntent.putExtra(PREF_USER_FIRST_TIME, isUserFirstTime);
-
-            startActivity(introIntent);
+            startActivity(new Intent(mainActivity, Onboarding.class));
         }
     }
 
-    private void init() {
-
+    private void calculateImageViewSize() {
         final View view = findViewById(R.id.ghost_view);
         ViewTreeObserver vto = view.getViewTreeObserver();
         vto.addOnGlobalLayoutListener (new ViewTreeObserver.OnGlobalLayoutListener() {
             @Override
             public void onGlobalLayout() {
                 view.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                Utils.setViewDimens(view);
+                setViewDimens(view);
             }
         });
+    }
+
+    private void initOnClickListeners() {
+        View.OnClickListener listener = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switch (v.getId()) {
+                    case R.id.add_from_camera:
+                        handleImageSelection(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE);
+                        break;
+
+                    case R.id.add_from_gallery:
+                        handleImageSelection(Manifest.permission.WRITE_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE);
+                        break;
+                }
+            }
+        };
 
         cameraBtn = findViewById(R.id.add_from_camera);
         galleryBtn = findViewById(R.id.add_from_gallery);
 
-        cameraBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if(hasPermission(Manifest.permission.CAMERA)) {
-                    cameraIntent();
-                } else {
-                    getPermission(Manifest.permission.CAMERA, CAMERA_REQUEST_CODE);
-                }
-            }
-        });
+        cameraBtn.setOnClickListener(listener);
+        galleryBtn.setOnClickListener(listener);
+    }
 
-        galleryBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (hasPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
-                    galleryIntent();
-                } else {
-                    getPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, MEDIA_REQUEST_CODE);
-                }
+    private void handleImageSelection(String permission, int requestCode) {
+
+        if(hasPermission(permission)) {
+            if(requestCode == CAMERA_REQUEST_CODE) {
+                selectFromCamera();
+            } else {
+                selectFromGallery();
             }
-        });
+        } else {
+            getPermission(permission, requestCode);
+        }
     }
 
     private boolean hasPermission(String permission) {
@@ -140,52 +149,47 @@ public class MainActivity extends AppCompatActivity {
         ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
     }
 
-    private void cameraIntent(){
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+    private void selectFromCamera() {
+        Intent launchCameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        Intent openWithIntent;
 
-        if (takePictureIntent.resolveActivity(getPackageManager()) != null) {
-            File imageFile = null;
+        if (launchCameraIntent.resolveActivity(getPackageManager()) != null) {
 
-            try {
-                imageFile = createImageFile();
+            if (createDesinationFileUri()) {
+                launchCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, getImageUri());
+                openWithIntent = Intent.createChooser(launchCameraIntent, "Take Picture Using");
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            if (imageFile != null) {
-                Uri imageUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, imageFile);
-
-                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
-                startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
-                setSelectedImageUri(imageUri);
+                startActivityForResult(openWithIntent, CAMERA_REQUEST_CODE);
             } else {
                 //todo make alert signaling of no image directory and prompt to maybe make one
             }
         }
     }
 
-    private File createImageFile() throws IOException {
+    private boolean createDesinationFileUri() {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
-        String imageFileName = "AutoEdit_" + timeStamp;
         String imageFileSuffix = ".jpg";
-        String savePath = "";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        String imageFileName = "AutoEdit_" + timeStamp + imageFileSuffix;
+        File imagesDirectory = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 
-        if(storageDir != null) {
-            savePath = storageDir.getPath() + "/AutoEdits";
-        } else {
-            return null;
+        if(imagesDirectory != null) {
+            imagesDirectory = new File(imagesDirectory + "/AutoEdits");
+
+            if(!imagesDirectory.isDirectory() && !imagesDirectory.exists()) {
+                imagesDirectory.mkdirs();
+            }
+
+            File imageFile = new File(imagesDirectory, imageFileName);
+            Uri uri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, imageFile);
+
+            setImageUri(uri);
+            return true;
         }
 
-        return File.createTempFile(
-                imageFileName,  /* prefix */
-                imageFileSuffix,/* suffix */
-                new File(savePath)      /* directory */
-        );
+        return false;
     }
 
-    private void galleryIntent() {
+    private void selectFromGallery() {
         Intent fileBrowserIntent = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*");//file browser
         Intent openWithIntent;
 
@@ -205,24 +209,26 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-        Intent sendImageToEditActivity = new Intent(this, EditPicture.class);
+        super.onActivityResult(requestCode, resultCode, intent);
+        // Once the image URI has been saved from taking or selecting a picture, edit picture activity starts
+        Intent editImageActivity = new Intent(this, EditPicture.class);
 
         if (requestCode == CAMERA_REQUEST_CODE &&  resultCode == Activity.RESULT_OK) {
-            sendImageToEditActivity.putExtra(SELECTED_IMAGE_URI, getSelectedImageUri().toString());
-            startActivity(sendImageToEditActivity);
+            startActivity(editImageActivity);
 
         } else if (requestCode == MEDIA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             Uri imageUri = intent.getData();
 
             if(imageUri != null) {
-                sendImageToEditActivity.putExtra(SELECTED_IMAGE_URI, imageUri.toString());
-                startActivity(sendImageToEditActivity);
+                setImageUri(imageUri);
+                startActivity(editImageActivity);
+
             } else {
                 //todo alert user something isnt right and couldnt get selected image
+                Toast.makeText(this, "Hmm, something didn't quite go right...", Toast.LENGTH_LONG).show();
             }
         }
-        super.onActivityResult(requestCode, resultCode, intent);
-    }
+    }//todo see how file handling is now on the edit picture activity
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {

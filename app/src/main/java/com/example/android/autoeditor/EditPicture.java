@@ -20,9 +20,9 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.example.android.autoeditor.filters.Editor;
-import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,14 +30,13 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
 
-import static com.example.android.autoeditor.MainActivity.SELECTED_IMAGE_URI;
-import static com.example.android.autoeditor.utils.Utils.getSelectedImage;
-import static com.example.android.autoeditor.utils.Utils.getSelectedImagePath;
+import static com.example.android.autoeditor.filters.Editor.getImageUri;
+import static com.example.android.autoeditor.utils.Utils.getTargetHeight;
+import static com.example.android.autoeditor.utils.Utils.getTargetWidth;
 
 public class EditPicture extends AppCompatActivity {
     Button saveButton;
     ImageView mImageView;
-    Uri myUri;
     SeekBar contrastSeekbar;
     SeekBar exposureSeekbar;
     SeekBar sharpenSeekbar;
@@ -51,17 +50,18 @@ public class EditPicture extends AppCompatActivity {
     private TextView seekbarLabel;
     private SeekBar.OnSeekBarChangeListener listener;
 
-    Context ctx;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
-        ctx = getApplicationContext();
 
         mImageView = findViewById(R.id.selected_picture_image_view);
-        imageEditor = new Editor(getSelectedImage(), this);
+        imageEditor = new Editor(this);
 
+        initUi();
+    }
+
+    private void initUi() {
         //Start of test sliders etc
         contrastTextView = findViewById(R.id.contrast_label);
         contrastSeekbar = findViewById(R.id.contrast_seekbar);
@@ -115,104 +115,51 @@ public class EditPicture extends AppCompatActivity {
         sharpenSeekbar.setOnSeekBarChangeListener(listener);
         saturationSeekbar.setOnSeekBarChangeListener(listener);
 
-        Intent intent = getIntent();
-        Bundle extras = getIntent().getExtras();
+        setImageViewPic();
+    }
 
-        if (intent.hasExtra(SELECTED_IMAGE_URI)) {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(SELECTED_IMAGE_URI));
-        } else {
-            //myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
+    private void setImageViewPic() {
+        Bitmap image = null;
+        try {
+            image = resizeBitmapToPreview(getTargetWidth(), getTargetHeight());
+        } catch (IOException e) {
+            e.printStackTrace();
         }
 
-        setPic();
+        if(image != null) {
+            mImageView.setImageBitmap(image);
+        } else {
+            //todo do something if cant set pic
+        }
     }
 
-    private void setPic() {
-        // Get the dimensions of the View
-        int targetW = Utils.getTargetWidth();
-        int targetH = Utils.getTargetHeight();
+    private Bitmap resizeBitmapToPreview(int reqWidth, int reqHeight) throws IOException {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        Bitmap img = null;
 
-        // Get the dimensions of the bitmap
-        BitmapFactory.Options bmOptions = new BitmapFactory.Options();
-        bmOptions.inJustDecodeBounds = true;
-        int photoW = bmOptions.outWidth;
-        int photoH = bmOptions.outHeight;
+        try {
+            InputStream imageStream = getContentResolver().openInputStream(getImageUri());
+            BitmapFactory.decodeStream(imageStream, null, options);
+            Objects.requireNonNull(imageStream).close();
 
-        // Determine how much to scale down the image
-        int scaleFactor = Math.min(photoW/targetW, photoH/targetH);
+            // Calculate inSampleSize
+            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
 
-        // Decode the image file into a Bitmap sized to fill the View
-        bmOptions.inJustDecodeBounds = false;
-        bmOptions.inSampleSize = scaleFactor;
-        bmOptions.inPurgeable = true;
+            // Decode bitmap with inSampleSize set
+            options.inJustDecodeBounds = false;
+            imageStream = getContentResolver().openInputStream(getImageUri());
+            img = BitmapFactory.decodeStream(imageStream, null, options);
+            options.inJustDecodeBounds = true;
 
-        Bitmap bitmap = BitmapFactory.decodeFile(getSelectedImagePath(), bmOptions);
-        mImageView.setImageBitmap(bitmap);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return rotateImageIfRequired(img, getImageUri());
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.overflow_menu, menu);
-        return true;
-    }
-
-    @Override
-    public void onBackPressed() {
-        super.onBackPressed();
-        Intent i = new Intent(this, MainActivity.class);
-        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-        startActivity(i); //goes back to main activity
-    }
-
-    /**
-     * This method is responsible for solving the rotation issue if exist. Also scale the images to
-     * 1024x1024 resolution
-     *
-     * @param context       The current context
-     * @param selectedImage The Image URI
-     * @return Bitmap image results
-     */
-    public static Bitmap handleSamplingAndRotationBitmap(Context context, Uri selectedImage)
-            throws IOException {
-        int MAX_HEIGHT = 1024;
-        int MAX_WIDTH = 1024;
-
-        // First decode with inJustDecodeBounds=true to check dimensions
-        final BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        InputStream imageStream = context.getContentResolver().openInputStream(selectedImage);
-        BitmapFactory.decodeStream(imageStream, null, options);
-        Objects.requireNonNull(imageStream).close();
-
-        // Calculate inSampleSize
-        options.inSampleSize = calculateInSampleSize(options, MAX_WIDTH, MAX_HEIGHT);
-
-        // Decode bitmap with inSampleSize set
-        options.inJustDecodeBounds = false;
-        imageStream = context.getContentResolver().openInputStream(selectedImage);
-        Bitmap img = BitmapFactory.decodeStream(imageStream, null, options);
-
-        img = rotateImageIfRequired(context, img, selectedImage);
-        return img;
-    }
-
-    /**
-     * Calculate an inSampleSize for use in a {@link BitmapFactory.Options} object when decoding
-     * bitmaps using the decode* methods from {@link BitmapFactory}. This implementation calculates
-     * the closest inSampleSize that will mImageView in the final decoded bitmap having a width and
-     * height equal to or larger than the requested width and height. This implementation does not
-     * ensure a power of 2 is returned for inSampleSize which can be faster when decoding but
-     * results in a larger bitmap which isn't as useful for caching purposes.
-     *
-     * @param options   An options object with out* params already populated (run through a decode*
-     *                  method with inJustDecodeBounds==true
-     * @param reqWidth  The requested width of the resulting bitmap
-     * @param reqHeight The requested height of the resulting bitmap
-     * @return The value to be used for inSampleSize
-     */
-    private static int calculateInSampleSize(BitmapFactory.Options options,
-                                             int reqWidth, int reqHeight) {
+    private int calculateInSampleSize(
+            BitmapFactory.Options options, int reqWidth, int reqHeight) {
         // Raw height and width of image
         final int height = options.outHeight;
         final int width = options.outWidth;
@@ -220,42 +167,23 @@ public class EditPicture extends AppCompatActivity {
 
         if (height > reqHeight || width > reqWidth) {
 
-            // Calculate ratios of height and width to requested height and width
-            final int heightRatio = Math.round((float) height / (float) reqHeight);
-            final int widthRatio = Math.round((float) width / (float) reqWidth);
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
 
-            // Choose the smallest ratio as inSampleSize value, this will guarantee a final image
-            // with both dimensions larger than or equal to the requested height and width.
-            inSampleSize = heightRatio < widthRatio ? heightRatio : widthRatio;
-
-            // This offers some additional logic in case the image has a strange
-            // aspect ratio. For example, a panorama may have a much larger
-            // width than height. In these cases the total pixels might still
-            // end up being too large to fit comfortably in memory, so we should
-            // be more aggressive with sample down the image (=larger inSampleSize).
-
-            final float totalPixels = width * height;
-
-            // Anything more than 2x the requested pixels we'll sample down further
-            final float totalReqPixelsCap = reqWidth * reqHeight * 2;
-
-            while (totalPixels / (inSampleSize * inSampleSize) > totalReqPixelsCap) {
-                inSampleSize++;
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
             }
         }
+
         return inSampleSize;
     }
 
-    /**
-     * Rotate an image if required.
-     *
-     * @param img           The image bitmap
-     * @param selectedImage Image URI
-     * @return The resulted Bitmap after manipulation
-     */
-    private static Bitmap rotateImageIfRequired(Context context, Bitmap img, Uri selectedImage) throws IOException {
+    private Bitmap rotateImageIfRequired(Bitmap img, Uri selectedImage) throws IOException {
 
-        InputStream input = context.getContentResolver().openInputStream(selectedImage);
+        InputStream input = getContentResolver().openInputStream(selectedImage);
         ExifInterface ei;
         if (Build.VERSION.SDK_INT > 23)
             ei = new ExifInterface(Objects.requireNonNull(input));
@@ -282,6 +210,21 @@ public class EditPicture extends AppCompatActivity {
         Bitmap rotatedImg = Bitmap.createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
         img.recycle();
         return rotatedImg;
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the menu; this adds items to the action bar if it is present.
+        getMenuInflater().inflate(R.menu.overflow_menu, menu);
+        return true;
+    }
+
+    @Override
+    public void onBackPressed() {
+        super.onBackPressed();
+        Intent i = new Intent(this, MainActivity.class);
+        i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(i); //goes back to main activity
     }
 
     private File createImageFile() throws IOException {

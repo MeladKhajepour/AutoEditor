@@ -2,15 +2,14 @@ package com.example.android.autoeditor.filters;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.net.Uri;
 
 import com.example.android.autoeditor.R;
 
 public class Editor extends Filter {
-    private Context ctx;
 
-    public Editor(Bitmap bitmap, Context context) {
-        originalPreviewBitmap = bitmap;
-        ctx = context;
+    public Editor(Context context) {
+        super(context);
     }
 
     public Bitmap getActivityBitmap() {
@@ -62,5 +61,13 @@ public class Editor extends Filter {
         }
 
         return labelPrefix + labelValue;
+    }
+
+    public static void setImageUri(Uri uri) {
+        selectedImageUri = uri;
+    }
+
+    public static Uri getImageUri() {
+        return selectedImageUri;
     }
 }
