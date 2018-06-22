@@ -4,7 +4,6 @@ import android.annotation.SuppressLint;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -20,12 +19,9 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.SystemClock;
-import android.provider.MediaStore;
 import android.support.annotation.RequiresApi;
 import android.support.media.ExifInterface;
 import android.support.v7.app.AppCompatActivity;
-import android.text.TextUtils;
-import android.util.Log;
 import android.util.Size;
 import android.util.TypedValue;
 import android.view.Display;
@@ -37,33 +33,28 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.example.android.autoeditor.OverlayView.DrawCallback;
 import com.example.android.autoeditor.env.BorderedText;
 import com.example.android.autoeditor.env.ImageUtils;
 import com.example.android.autoeditor.env.Logger;
-import com.example.android.autoeditor.OverlayView.DrawCallback;
 import com.example.android.autoeditor.tracking.MultiBoxTracker;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URI;
 import java.text.SimpleDateFormat;
-import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Vector;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
 import static com.example.android.autoeditor.MainActivity.IMAGE;
 import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
 import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
-import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
 import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
 import static com.example.android.autoeditor.utils.Utils.setFilter;
 
@@ -469,7 +460,13 @@ public class EditPicture extends AppCompatActivity {
 
     protected void processImageRGBbytes() {
         detectionOverlay.postInvalidate();
-        mBitmap = Bitmap.createScaledBitmap(mBitmap,TF_OD_API_INPUT_SIZE,TF_OD_API_INPUT_SIZE,true);
+        try {
+            mBitmap =  decodeSampledBitmapFromResource(this, myUri, TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+     //   mBitmap = createScaledBitmap(mBitmap, TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE, true);
+         mBitmap = BITMAP_RESIZER(mBitmap,TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
         handler = new Handler();
 
 
@@ -490,11 +487,11 @@ public class EditPicture extends AppCompatActivity {
                         final List<Classifier.Recognition> results = detector.recognizeImage(mBitmap);
                         lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
                         LOGGER.i("Detect: %s", results);
-                        croppedBitmap = Bitmap.createBitmap(mBitmap);
-                        Bitmap cropCopyBitmap = croppedBitmap.copy(Bitmap.Config.ARGB_8888, true);
-                        final Canvas canvas = new Canvas(cropCopyBitmap);
-                        canvas.drawBitmap(cropCopyBitmap, 0, 0, new Paint());
-                        final Paint paint = new Paint();
+                        final Canvas canvas = new Canvas(mBitmap);
+                        canvas.drawBitmap(mBitmap, 0, 0, new Paint());
+                        final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG |
+                                Paint.DITHER_FLAG |
+                                Paint.ANTI_ALIAS_FLAG);
                         paint.setColor(Color.RED);
                         paint.setStyle(Paint.Style.STROKE);
                         paint.setStrokeWidth(2.0f);
@@ -510,7 +507,10 @@ public class EditPicture extends AppCompatActivity {
                             }
                         }
                         detectionOverlay.postInvalidate();
-                        scaledBitmap = getResizedBitmap(cropCopyBitmap,previewHeight, previewWidth);
+                      //  scaledBitmap = createScaledBitmap(mBitmap,previewWidth, previewHeight,false);
+                       scaledBitmap = BITMAP_RESIZER(mBitmap,previewWidth,previewHeight);
+                        //scaledBitmap = Bitmap.createScaledBitmap(mBitmap,
+                       //         previewWidth * (result.getHeight() / previewHeight), result.getHeight(),true);
                         result.setImageBitmap(scaledBitmap);
 
                     }
@@ -523,19 +523,63 @@ public class EditPicture extends AppCompatActivity {
         return debug;
    }
 
-    public Bitmap getResizedBitmap(Bitmap bm, int newHeight, int newWidth)
-    {
-        int width = bm.getWidth();
-        int height = bm.getHeight();
-        float scaleWidth = ((float) newWidth) / width;
-        float scaleHeight = ((float) newHeight) / height;
-        // create a matrix for the manipulation
-        Matrix matrix = new Matrix();
-        // resize the bit map
-        matrix.postScale(scaleWidth, scaleHeight);
-        // recreate the new Bitmap
-        return Bitmap.createBitmap(bm, 0, 0, width, height, matrix, false);
+    public Bitmap BITMAP_RESIZER(Bitmap bitmap,int newWidth,int newHeight) {
+        Bitmap scaledBitmap = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888);
+
+        float scaleX = newWidth / (float) bitmap.getWidth();
+        float scaleY = newHeight / (float) bitmap.getHeight();
+        float pivotX = 0;
+        float pivotY = 0;
+
+        Matrix scaleMatrix = new Matrix();
+        scaleMatrix.setScale(scaleX, scaleY, pivotX, pivotY);
+
+        Canvas canvas = new Canvas(scaledBitmap);
+        canvas.setMatrix(scaleMatrix);
+        canvas.drawBitmap(bitmap, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
+
+        return scaledBitmap;
+
     }
 
+    public static Bitmap decodeSampledBitmapFromResource(Context context, Uri uri,
+                                                         int reqWidth, int reqHeight)
+            throws FileNotFoundException {
+        ContentResolver contentResolver = context.getContentResolver();
+        InputStream inputStream = contentResolver.openInputStream(uri);
+        // First decode with inJustDecodeBounds=true to check dimensions
+        final BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inJustDecodeBounds = true;
+        BitmapFactory.decodeStream(inputStream, null, options);
 
+        // Calculate inSampleSize
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
+        // Decode bitmap with inSampleSize set
+        options.inJustDecodeBounds = false;
+        inputStream = contentResolver.openInputStream(uri);
+        return BitmapFactory.decodeStream(inputStream, null, options);
+    }
+
+    public static int calculateInSampleSize(
+            BitmapFactory.Options options, int reqWidth, int reqHeight) {
+        // Raw height and width of image
+        final int height = options.outHeight;
+        final int width = options.outWidth;
+        int inSampleSize = 1;
+
+        if (height > reqHeight || width > reqWidth) {
+
+            final int halfHeight = height / 2;
+            final int halfWidth = width / 2;
+
+            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
+            // height and width larger than the requested height and width.
+            while ((halfHeight / inSampleSize) >= reqHeight
+                    && (halfWidth / inSampleSize) >= reqWidth) {
+                inSampleSize *= 2;
+            }
+        }
+
+        return inSampleSize;
+    }
 }
