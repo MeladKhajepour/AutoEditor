@@ -39,7 +39,6 @@ import com.example.android.autoeditor.env.ImageUtils;
 import com.example.android.autoeditor.env.Logger;
 import com.example.android.autoeditor.tracking.MultiBoxTracker;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -154,13 +153,6 @@ public class EditPicture extends AppCompatActivity {
             myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
         }
 
-
-        try {
-            mBitmap = handleSamplingAndRotationBitmap(this, myUri);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
         recognize();
         processImageRGBbytes();
     }
@@ -242,21 +234,6 @@ public class EditPicture extends AppCompatActivity {
     @Override
     public synchronized void onPause() {
         LOGGER.d("onPause " + this);
-
-        if (!isFinishing()) {
-            LOGGER.d("Requesting finish");
-            finish();
-        }
-
-        handlerThread.quitSafely();
-        try {
-            handlerThread.join();
-            handlerThread = null;
-            handler = null;
-        } catch (final InterruptedException e) {
-            LOGGER.e(e, "Exception!");
-        }
-
         super.onPause();
     }
 
@@ -281,36 +258,6 @@ public class EditPicture extends AppCompatActivity {
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(i); //goes back to main activity
     }
-
-    /**
-     * This method is responsible for solving the rotation issue if exist. Also scale the images to
-     * 1024x1024 resolution
-     *
-     * @param context       The current context
-     * @param selectedImage The Image URI
-     * @return Bitmap image results
-     */
-    public Bitmap handleSamplingAndRotationBitmap(Context context, Uri selectedImage)
-            throws IOException {
-
-        // First decode with inJustDecodeBounds=true to check dimensions
-        final BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inJustDecodeBounds = true;
-        InputStream imageStream = context.getContentResolver().openInputStream(selectedImage);
-        BitmapFactory.decodeStream(imageStream, null, options);
-        Objects.requireNonNull(imageStream).close();
-        previewHeight = options.outHeight;
-        previewWidth  = options.outWidth;
-
-        // Decode bitmap with inSampleSize set
-        options.inJustDecodeBounds = false;
-        imageStream = context.getContentResolver().openInputStream(selectedImage);
-        Bitmap img = BitmapFactory.decodeStream(imageStream, null, options);
-
-        img = rotateImageIfRequired(context, img, selectedImage);
-        return img;
-    }
-
 
     /**
      * Rotate an image if required.
@@ -379,7 +326,7 @@ public class EditPicture extends AppCompatActivity {
         FileOutputStream out = null;
         try {
             out = new FileOutputStream(Objects.requireNonNull(imageToSaveFile));
-            mBitmap.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
+            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 100, out); // bmp is your Bitmap instance
             // PNG is a lossless format, the compression factor (100) is ignored
         } catch (Exception e) {
             e.printStackTrace();
@@ -407,19 +354,6 @@ public class EditPicture extends AppCompatActivity {
     }
 
     public void recognize() {
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        mBitmap.compress(Bitmap.CompressFormat.PNG, 100, stream);
-        byte[] byteArray = stream.toByteArray();
-        yuvBytes[0] = byteArray;
-
-        final float textSizePx =
-                TypedValue.applyDimension(
-                        TypedValue.COMPLEX_UNIT_DIP, TEXT_SIZE_DIP, getResources().getDisplayMetrics());
-        borderedText = new BorderedText(textSizePx);
-        borderedText.setTypeface(Typeface.MONOSPACE);
-
-        tracker = new MultiBoxTracker(this);
-
         try {
             detector = TFLiteObjectDetectionAPIModel.create(
                     getApplicationContext().getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
@@ -431,42 +365,21 @@ public class EditPicture extends AppCompatActivity {
             toast.show();
             finish();
         }
-
-        final Display display = getWindowManager().getDefaultDisplay();
-
-        sensorOrientation = display.getRotation();
-
-        frameToCropTransform =
-                ImageUtils.getTransformationMatrix(
-                        previewWidth, previewHeight,
-                        TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE,
-                        sensorOrientation, MAINTAIN_ASPECT);
-
         cropToFrameTransform = new Matrix();
-        frameToCropTransform.invert(cropToFrameTransform);
-
-        detectionOverlay = findViewById(R.id.detection_overlay);
-        detectionOverlay.addCallback(
-                new DrawCallback() {
-                    @Override
-                    public void drawCallback(final Canvas canvas) {
-                        tracker.draw(canvas);
-                        if (isDebug()) {
-                            tracker.drawDebug(canvas);
-                        }
-                    }
-                });
     }
 
     protected void processImageRGBbytes() {
-        detectionOverlay.postInvalidate();
         try {
             mBitmap =  decodeSampledBitmapFromResource(this, myUri, TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-     //   mBitmap = createScaledBitmap(mBitmap, TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE, true);
-         mBitmap = BITMAP_RESIZER(mBitmap,TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
+        try {
+            mBitmap = rotateImageIfRequired(this, mBitmap, myUri);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        mBitmap = BITMAP_RESIZER(mBitmap,TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
         handler = new Handler();
 
 
@@ -506,11 +419,8 @@ public class EditPicture extends AppCompatActivity {
                                 mappedRecognitions.add(result);
                             }
                         }
-                        detectionOverlay.postInvalidate();
-                      //  scaledBitmap = createScaledBitmap(mBitmap,previewWidth, previewHeight,false);
-                       scaledBitmap = BITMAP_RESIZER(mBitmap,previewWidth,previewHeight);
-                        //scaledBitmap = Bitmap.createScaledBitmap(mBitmap,
-                       //         previewWidth * (result.getHeight() / previewHeight), result.getHeight(),true);
+                        scaledBitmap = BITMAP_RESIZER(mBitmap, previewWidth, previewHeight);
+                       //scaledBitmap = BITMAP_RESIZER(mBitmap,previewWidth,previewHeight);
                         result.setImageBitmap(scaledBitmap);
 
                     }
@@ -518,10 +428,6 @@ public class EditPicture extends AppCompatActivity {
             }
         }).start();
     }
-
-    public boolean isDebug() {
-        return debug;
-   }
 
     public Bitmap BITMAP_RESIZER(Bitmap bitmap,int newWidth,int newHeight) {
         Bitmap scaledBitmap = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888);
@@ -542,7 +448,7 @@ public class EditPicture extends AppCompatActivity {
 
     }
 
-    public static Bitmap decodeSampledBitmapFromResource(Context context, Uri uri,
+    public Bitmap decodeSampledBitmapFromResource(Context context, Uri uri,
                                                          int reqWidth, int reqHeight)
             throws FileNotFoundException {
         ContentResolver contentResolver = context.getContentResolver();
@@ -551,6 +457,8 @@ public class EditPicture extends AppCompatActivity {
         final BitmapFactory.Options options = new BitmapFactory.Options();
         options.inJustDecodeBounds = true;
         BitmapFactory.decodeStream(inputStream, null, options);
+        previewHeight = options.outHeight;
+        previewWidth = options.outWidth;
 
         // Calculate inSampleSize
         options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
