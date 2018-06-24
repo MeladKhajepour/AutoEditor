@@ -33,11 +33,7 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.android.autoeditor.OverlayView.DrawCallback;
-import com.example.android.autoeditor.env.BorderedText;
-import com.example.android.autoeditor.env.ImageUtils;
 import com.example.android.autoeditor.env.Logger;
-import com.example.android.autoeditor.tracking.MultiBoxTracker;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -60,43 +56,20 @@ import static com.example.android.autoeditor.utils.Utils.setFilter;
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class EditPicture extends AppCompatActivity {
     private static final Logger LOGGER = new Logger();
-    private MultiBoxTracker tracker;
     private static final int TF_OD_API_INPUT_SIZE = 300;
     private static final String TF_OD_API_MODEL_FILE =
             "mobilenet_ssd.tflite";
     private static final String TF_OD_API_LABELS_FILE = "coco_labels_list.txt";
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
-    private static final boolean MAINTAIN_ASPECT = false;
-    private static final Size DESIRED_PREVIEW_SIZE = new Size(640, 480);
-    private static final boolean SAVE_PREVIEW_BITMAP = false;
-    private static final float TEXT_SIZE_DIP = 10;
-    private static final int[] COLORS = {
-            Color.BLUE, Color.RED, Color.GREEN, Color.YELLOW, Color.CYAN, Color.MAGENTA, Color.WHITE,
-            Color.parseColor("#55FF55"), Color.parseColor("#FFA500"), Color.parseColor("#FF8888"),
-            Color.parseColor("#AAAAFF"), Color.parseColor("#FFFFAA"), Color.parseColor("#55AAAA"),
-            Color.parseColor("#AA33AA"), Color.parseColor("#0D0068")
-    };
-    private final Paint boxPaint = new Paint();
-    private Integer sensorOrientation;
     private Classifier detector;
     private int previewWidth;
     private int previewHeight;
-    private Bitmap rgbFrameBitmap = null;
-    private Bitmap croppedBitmap = null;
-    private Matrix frameToCropTransform;
+    private int scaledWidth;
+    private int scaledHeight;
     private Matrix cropToFrameTransform;
-    private Bitmap cropCopyBitmap;
-    private BorderedText borderedText;
-    private long lastProcessingTimeMs;
-    private OverlayView detectionOverlay;
     private List<Classifier.Recognition> mappedRecognitions =
             new LinkedList<>();
-    private boolean debug = false;
     private Handler handler;
-    private HandlerThread handlerThread;
-    protected Runnable postInferenceCallback;
-    protected byte[][] yuvBytes = new byte[3][];
-    private long timestamp = 0;
 
     Button saveButton;
     ImageView result;
@@ -153,7 +126,6 @@ public class EditPicture extends AppCompatActivity {
             myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
         }
 
-        recognize();
         processImageRGBbytes();
     }
 
@@ -266,7 +238,8 @@ public class EditPicture extends AppCompatActivity {
      * @param selectedImage Image URI
      * @return The resulted Bitmap after manipulation
      */
-    private static Bitmap rotateImageIfRequired(Context context, Bitmap img, Uri selectedImage) throws IOException {
+    private Bitmap rotateImageIfRequired(Context context, Bitmap img, Uri selectedImage) throws IOException {
+        int tempWidth = previewWidth;
 
         InputStream input = context.getContentResolver().openInputStream(selectedImage);
         ExifInterface ei;
@@ -279,10 +252,14 @@ public class EditPicture extends AppCompatActivity {
 
         switch (orientation) {
             case ExifInterface.ORIENTATION_ROTATE_90:
+                previewWidth = previewHeight;
+                previewHeight = tempWidth;
                 return rotateImage(img, 90);
             case ExifInterface.ORIENTATION_ROTATE_180:
                 return rotateImage(img, 180);
             case ExifInterface.ORIENTATION_ROTATE_270:
+                previewWidth = previewHeight;
+                previewHeight = tempWidth;
                 return rotateImage(img, 270);
             default:
                 return img;
@@ -353,7 +330,7 @@ public class EditPicture extends AppCompatActivity {
         this.sendBroadcast(mediaScanIntent);
     }
 
-    public void recognize() {
+    protected void processImageRGBbytes() {
         try {
             detector = TFLiteObjectDetectionAPIModel.create(
                     getApplicationContext().getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
@@ -366,17 +343,12 @@ public class EditPicture extends AppCompatActivity {
             finish();
         }
         cropToFrameTransform = new Matrix();
-    }
 
-    protected void processImageRGBbytes() {
         try {
             mBitmap =  decodeSampledBitmapFromResource(this, myUri, TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
+            scaledHeight = mBitmap.getHeight();
+            scaledWidth = mBitmap.getWidth();
         } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        try {
-            mBitmap = rotateImageIfRequired(this, mBitmap, myUri);
-        } catch (IOException e) {
             e.printStackTrace();
         }
         mBitmap = BITMAP_RESIZER(mBitmap,TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
@@ -396,9 +368,7 @@ public class EditPicture extends AppCompatActivity {
                         // make operation on UI - on example
                         // on progress bar.
 
-                        final long startTime = SystemClock.uptimeMillis();
                         final List<Classifier.Recognition> results = detector.recognizeImage(mBitmap);
-                        lastProcessingTimeMs = SystemClock.uptimeMillis() - startTime;
                         LOGGER.i("Detect: %s", results);
                         final Canvas canvas = new Canvas(mBitmap);
                         canvas.drawBitmap(mBitmap, 0, 0, new Paint());
@@ -419,8 +389,8 @@ public class EditPicture extends AppCompatActivity {
                                 mappedRecognitions.add(result);
                             }
                         }
-                        scaledBitmap = BITMAP_RESIZER(mBitmap, previewWidth, previewHeight);
-                       //scaledBitmap = BITMAP_RESIZER(mBitmap,previewWidth,previewHeight);
+                       scaledBitmap = BITMAP_RESIZER(mBitmap, scaledWidth, scaledHeight);
+
                         result.setImageBitmap(scaledBitmap);
 
                     }
@@ -465,7 +435,14 @@ public class EditPicture extends AppCompatActivity {
         // Decode bitmap with inSampleSize set
         options.inJustDecodeBounds = false;
         inputStream = contentResolver.openInputStream(uri);
-        return BitmapFactory.decodeStream(inputStream, null, options);
+        Bitmap bitmap = BitmapFactory.decodeStream(inputStream, null, options);
+        try {
+            bitmap = rotateImageIfRequired(this, bitmap, myUri);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return bitmap;
     }
 
     public static int calculateInSampleSize(
