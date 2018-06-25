@@ -33,8 +33,6 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.example.android.autoeditor.env.Logger;
-
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -55,10 +53,9 @@ import static com.example.android.autoeditor.utils.Utils.setFilter;
 
 @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
 public class EditPicture extends AppCompatActivity {
-    private static final Logger LOGGER = new Logger();
-    private static final int TF_OD_API_INPUT_SIZE = 300;
+    private static final int TF_OD_API_INPUT_SIZE = 224;
     private static final String TF_OD_API_MODEL_FILE =
-            "mobilenet_ssd.tflite";
+            "frozen_inference_graph.pb";
     private static final String TF_OD_API_LABELS_FILE = "coco_labels_list.txt";
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
     private Classifier detector;
@@ -204,12 +201,6 @@ public class EditPicture extends AppCompatActivity {
     }
 
     @Override
-    public synchronized void onPause() {
-        LOGGER.d("onPause " + this);
-        super.onPause();
-    }
-
-    @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         // Inflate the menu; this adds items to the action bar if it is present.
         getMenuInflater().inflate(R.menu.overflow_menu, menu);
@@ -332,10 +323,9 @@ public class EditPicture extends AppCompatActivity {
 
     protected void processImageRGBbytes() {
         try {
-            detector = TFLiteObjectDetectionAPIModel.create(
+            detector = TensorFlowObjectDetectionAPIModel.create(
                     getApplicationContext().getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
         } catch (final IOException e) {
-            LOGGER.e("Exception initializing classifier!", e);
             Toast toast =
                     Toast.makeText(
                             getApplicationContext(), "Classifier could not be initialized", Toast.LENGTH_SHORT);
@@ -369,7 +359,6 @@ public class EditPicture extends AppCompatActivity {
                         // on progress bar.
 
                         final List<Classifier.Recognition> results = detector.recognizeImage(mBitmap);
-                        LOGGER.i("Detect: %s", results);
                         final Canvas canvas = new Canvas(mBitmap);
                         canvas.drawBitmap(mBitmap, 0, 0, new Paint());
                         final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG |

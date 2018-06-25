@@ -65,12 +65,5 @@
         android:layout_height="wrap_content"
         fresco:layout_constraintTop_toBottomOf="@+id/exposure_seekbar"/>
 
-    <com.example.android.autoeditor.OverlayView android:layout_height="match_parent"
-        android:layout_width="match_parent"
-        android:id="@+id/detection_overlay"/>
-
-    <com.example.android.autoeditor.OverlayView android:layout_height="match_parent"
-        android:layout_width="match_parent"
-        android:id="@+id/debug_overlay"/>
   
 </android.support.constraint.ConstraintLayout>
