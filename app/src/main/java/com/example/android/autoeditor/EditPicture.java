@@ -61,8 +61,8 @@ public class EditPicture extends AppCompatActivity {
     private Classifier detector;
     private int previewWidth;
     private int previewHeight;
-    private int scaledWidth;
-    private int scaledHeight;
+    private float scaleX;
+    private float scaleY;
     private Matrix cropToFrameTransform;
     private List<Classifier.Recognition> mappedRecognitions =
             new LinkedList<>();
@@ -336,8 +336,7 @@ public class EditPicture extends AppCompatActivity {
 
         try {
             mBitmap =  decodeSampledBitmapFromResource(this, myUri, TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
-            scaledHeight = mBitmap.getHeight();
-            scaledWidth = mBitmap.getWidth();
+            scaledBitmap = mBitmap.copy(mBitmap.getConfig(), true);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
@@ -359,8 +358,7 @@ public class EditPicture extends AppCompatActivity {
                         // on progress bar.
 
                         final List<Classifier.Recognition> results = detector.recognizeImage(mBitmap);
-                        final Canvas canvas = new Canvas(mBitmap);
-                        canvas.drawBitmap(mBitmap, 0, 0, new Paint());
+                        final Canvas canvas = new Canvas(scaledBitmap);
                         final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG |
                                 Paint.DITHER_FLAG |
                                 Paint.ANTI_ALIAS_FLAG);
@@ -372,13 +370,16 @@ public class EditPicture extends AppCompatActivity {
                         for (final Classifier.Recognition result : results) {
                             final RectF location = result.getLocation();
                             if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
+                                location.left /=  scaleX;
+                                location.right /= scaleX;
+                                location.top /= scaleY;
+                                location.bottom /= scaleY;
                                 canvas.drawRect(location, paint);
                                 cropToFrameTransform.mapRect(location);
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
                             }
                         }
-                       scaledBitmap = BITMAP_RESIZER(mBitmap, scaledWidth, scaledHeight);
 
                         result.setImageBitmap(scaledBitmap);
 
@@ -391,8 +392,8 @@ public class EditPicture extends AppCompatActivity {
     public Bitmap BITMAP_RESIZER(Bitmap bitmap,int newWidth,int newHeight) {
         Bitmap scaledBitmap = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888);
 
-        float scaleX = newWidth / (float) bitmap.getWidth();
-        float scaleY = newHeight / (float) bitmap.getHeight();
+        scaleX = newWidth / (float) bitmap.getWidth();
+        scaleY = newHeight / (float) bitmap.getHeight();
         float pivotX = 0;
         float pivotY = 0;
 
