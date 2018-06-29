@@ -10,6 +10,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Typeface;
 import android.net.Uri;
@@ -39,6 +40,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
@@ -67,6 +69,7 @@ public class EditPicture extends AppCompatActivity {
     private List<Classifier.Recognition> mappedRecognitions =
             new LinkedList<>();
     private Handler handler;
+    ArrayList <Bitmap> masks = new ArrayList<>();
 
     Button saveButton;
     ImageView result;
@@ -379,6 +382,19 @@ public class EditPicture extends AppCompatActivity {
                                 result.setLocation(location);
                                 mappedRecognitions.add(result);
                             }
+                        }
+
+                        for (final Classifier.Recognition result : results) {
+                            RectF locationF = result.getLocation();
+                            Rect location = new Rect((int) locationF.left, (int)locationF.top, (int) locationF.right, (int) locationF.bottom);
+                            Rect des = new Rect(0,0,location.right, location.bottom);
+                            Bitmap tempBitmap = Bitmap.createBitmap(location.right,
+                                    location.bottom, Bitmap.Config.ARGB_8888);
+
+                            Canvas tempCanvas = new Canvas(tempBitmap);
+                            tempCanvas.drawBitmap(scaledBitmap, location,des,null);
+
+                            masks.add(tempBitmap);
                         }
 
                         result.setImageBitmap(scaledBitmap);
