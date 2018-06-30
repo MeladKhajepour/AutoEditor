@@ -5,13 +5,16 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 
 import com.example.android.autoeditor.R;
+import com.example.android.autoeditor.utils.BitmapUtils;
 
 import java.io.File;
 
 public class Editor extends Filter {
 
-    public Editor(Context context) {
+    public Editor(Context context, int width, int height) {
         super(context);
+
+        originalPreviewBitmap = BitmapUtils.resizeBitmapToPreview(context, width, height);
     }
 
     public Bitmap getPreviewBitmap() {

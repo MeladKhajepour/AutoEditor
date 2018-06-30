@@ -16,7 +16,7 @@ import static com.example.android.autoeditor.filters.Editor.getImageUri;
 
 public class BitmapUtils {
 
-    private static Bitmap resizeBitmapToPreview(Context ctx, int reqWidth, int reqHeight) throws IOException {
+    public static Bitmap resizeBitmapToPreview(Context ctx, int reqWidth, int reqHeight) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         Bitmap img = null;
 
@@ -38,7 +38,15 @@ public class BitmapUtils {
             e.printStackTrace();
         }
 
-        return rotateImageIfRequired(ctx, img, getImageUri());
+        Bitmap i = null;
+
+        try {
+            i = rotateImageIfRequired(ctx, img, getImageUri());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return i;
     }
 
     private static int calculateInSampleSize(

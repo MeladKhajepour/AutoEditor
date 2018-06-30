@@ -12,6 +12,7 @@ import android.widget.ImageView;
 
 import com.example.android.autoeditor.filters.Editor;
 import com.example.android.autoeditor.utils.Cluster;
+import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static com.example.android.autoeditor.filters.Editor.getTempFile;
+import static com.example.android.autoeditor.utils.Utils.getTargetWidth;
 
 public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAdjustment {
     Button saveButton;
@@ -32,7 +34,7 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
 
-        imageEditor = new Editor(this);//Todo
+        imageEditor = new Editor(this, getTargetWidth(), getTargetWidth());//Todo
 
         initUi();
     }
