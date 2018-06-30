@@ -14,7 +14,6 @@ import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
-import android.net.Uri;
 import android.os.Build;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
@@ -27,7 +26,6 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.view.View;
 
-import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -57,12 +55,16 @@ public class Utils {
         }
 
         if (!permissionList.isEmpty()) {
-            requestPermissionList(ctx, permissionList);
+            requestPermissions(ctx, permissionList);
         }
     }
 
-    public static void requestPermissionList(Activity ctx, List<String> permissions) {
+    public static void requestPermissions(Activity ctx, List<String> permissions) {
         ActivityCompat.requestPermissions(ctx, permissions.toArray(new String[permissions.size()]), 0);
+    }
+
+    public static void requestPermission(Activity ctx, String permission) {
+        ActivityCompat.requestPermissions(ctx, new String[] {permission}, 0);
     }
 
     public static boolean allPermissionsGranted(Activity ctx) {

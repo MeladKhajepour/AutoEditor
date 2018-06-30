@@ -1,86 +1,45 @@
 package com.example.android.autoeditor;
 
-import android.annotation.SuppressLint;
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.os.Environment;
-import android.support.media.ExifInterface;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.SeekBar;
-import android.widget.TextView;
 
 import com.example.android.autoeditor.filters.Editor;
+import com.example.android.autoeditor.utils.Cluster;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.Objects;
 
-import static com.example.android.autoeditor.filters.Editor.getImageUri;
-import static com.example.android.autoeditor.utils.Utils.getTargetHeight;
-import static com.example.android.autoeditor.utils.Utils.getTargetWidth;
+import static com.example.android.autoeditor.filters.Editor.getTempFile;
 
-public class EditPicture extends AppCompatActivity {
+public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAdjustment {
     Button saveButton;
     ImageView mImageView;
-    SeekBar contrastSeekbar;
-    SeekBar exposureSeekbar;
-    SeekBar sharpenSeekbar;
-    SeekBar saturationSeekbar;
-    TextView contrastTextView;
-    TextView exposureTextView;
-    TextView sharpenTextView;
-    TextView saturationTextView;
+    Cluster exposure, contrast, sharpness, saturation;
     Bitmap mBitmap;
     private Editor imageEditor;
-    private TextView seekbarLabel;
-    private SeekBar.OnSeekBarChangeListener listener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
 
-        mImageView = findViewById(R.id.selected_picture_image_view);
-        imageEditor = new Editor(this);
+        imageEditor = new Editor(this);//Todo
 
         initUi();
     }
 
     private void initUi() {
-        //Start of test sliders etc
-        contrastTextView = findViewById(R.id.contrast_label);
-        contrastSeekbar = findViewById(R.id.contrast_seekbar);
-        sharpenTextView = findViewById(R.id.sharpen_label);
-        sharpenSeekbar = findViewById(R.id.sharpen_seekbar);
-        exposureTextView = findViewById(R.id.exposure_label);
-        exposureSeekbar = findViewById(R.id.exposure_seekbar);
-        saturationTextView = findViewById(R.id.saturation_label);
-        saturationSeekbar = findViewById(R.id.saturation_seekbar);
 
-        contrastSeekbar.setMax(200);
-        exposureSeekbar.setMax(200);
-        sharpenSeekbar.setMax(200);
-        saturationSeekbar.setMax(200);
-        contrastSeekbar.setProgress(100);
-        exposureSeekbar.setProgress(100);
-        sharpenSeekbar.setProgress(100);
-        saturationSeekbar.setProgress(100);
-
+        mImageView = findViewById(R.id.selected_picture_image_view);
         saveButton = findViewById(R.id.save_button);
         saveButton.setOnClickListener(new View.OnClickListener() {
 
@@ -90,126 +49,26 @@ public class EditPicture extends AppCompatActivity {
             }
         });
 
-        listener = new SeekBar.OnSeekBarChangeListener() {
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                progress -= 100;
-                imageEditor.setFilterStrength(progress, seekBar.getId());
-
-                mImageView.setImageBitmap(imageEditor.getActivityBitmap());
-                seekbarLabel.setText(imageEditor.getSeekbarLabel(progress, seekBar.getId()));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-                seekbarLabel = getSeekbarTextView(seekBar.getId());
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        };
-
-        contrastSeekbar.setOnSeekBarChangeListener(listener);
-        exposureSeekbar.setOnSeekBarChangeListener(listener);
-        sharpenSeekbar.setOnSeekBarChangeListener(listener);
-        saturationSeekbar.setOnSeekBarChangeListener(listener);
-
-        setImageViewPic();
+        initClusters();
+        updatePreview();
     }
 
-    private void setImageViewPic() {
-        Bitmap image = null;
-        try {
-            image = resizeBitmapToPreview(getTargetWidth(), getTargetHeight());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    private void initClusters() {
+        exposure = new Cluster(this, R.id.exposure_seekbar);
+        contrast = new Cluster(this, R.id.contrast_seekbar);
+        sharpness = new Cluster(this, R.id.sharpen_seekbar);
+        saturation = new Cluster(this, R.id.saturation_seekbar);
+    }
+
+    @Override
+    public void updatePreview() {
+        Bitmap image = imageEditor.getPreviewBitmap(); //todo do stuff with bitmaputils class
 
         if(image != null) {
             mImageView.setImageBitmap(image);
         } else {
             //todo do something if cant set pic
         }
-    }
-
-    private Bitmap resizeBitmapToPreview(int reqWidth, int reqHeight) throws IOException {
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        Bitmap img = null;
-
-        try {
-            InputStream imageStream = getContentResolver().openInputStream(getImageUri());
-            BitmapFactory.decodeStream(imageStream, null, options);
-            Objects.requireNonNull(imageStream).close();
-
-            // Calculate inSampleSize
-            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
-
-            // Decode bitmap with inSampleSize set
-            options.inJustDecodeBounds = false;
-            imageStream = getContentResolver().openInputStream(getImageUri());
-            img = BitmapFactory.decodeStream(imageStream, null, options);
-            options.inJustDecodeBounds = true;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return rotateImageIfRequired(img, getImageUri());
-    }
-
-    private int calculateInSampleSize(
-            BitmapFactory.Options options, int reqWidth, int reqHeight) {
-        // Raw height and width of image
-        final int height = options.outHeight;
-        final int width = options.outWidth;
-        int inSampleSize = 1;
-
-        if (height > reqHeight || width > reqWidth) {
-
-            final int halfHeight = height / 2;
-            final int halfWidth = width / 2;
-
-            // Calculate the largest inSampleSize value that is a power of 2 and keeps both
-            // height and width larger than the requested height and width.
-            while ((halfHeight / inSampleSize) >= reqHeight
-                    && (halfWidth / inSampleSize) >= reqWidth) {
-                inSampleSize *= 2;
-            }
-        }
-
-        return inSampleSize;
-    }
-
-    private Bitmap rotateImageIfRequired(Bitmap img, Uri selectedImage) throws IOException {
-
-        InputStream input = getContentResolver().openInputStream(selectedImage);
-        ExifInterface ei;
-        if (Build.VERSION.SDK_INT > 23)
-            ei = new ExifInterface(Objects.requireNonNull(input));
-        else
-            ei = new ExifInterface(selectedImage.getPath());
-
-        int orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
-
-        switch (orientation) {
-            case ExifInterface.ORIENTATION_ROTATE_90:
-                return rotateImage(img, 90);
-            case ExifInterface.ORIENTATION_ROTATE_180:
-                return rotateImage(img, 180);
-            case ExifInterface.ORIENTATION_ROTATE_270:
-                return rotateImage(img, 270);
-            default:
-                return img;
-        }
-    }
-
-    private static Bitmap rotateImage(Bitmap img, int degree) {
-        Matrix matrix = new Matrix();
-        matrix.postRotate(degree);
-        Bitmap rotatedImg = Bitmap.createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
-        img.recycle();
-        return rotatedImg;
     }
 
     @Override
@@ -227,31 +86,8 @@ public class EditPicture extends AppCompatActivity {
         startActivity(i); //goes back to main activity
     }
 
-    private File createImageFile() throws IOException {
-        // Create an image file name
-        @SuppressLint("SimpleDateFormat") String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
-
-        if (!storageDir.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            storageDir.mkdir();
-        }
-
-        return File.createTempFile(
-                imageFileName,  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
-        );
-    }
     private void saveImage(){
-        File imageToSaveFile = null;
-
-        try {
-            imageToSaveFile = createImageFile();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        File imageToSaveFile = getTempFile();
 
         FileOutputStream out = null;
         try {
@@ -270,40 +106,12 @@ public class EditPicture extends AppCompatActivity {
             }
         }
 
-        Uri finalUri = Uri.fromFile(imageToSaveFile);
-        addToGallery(finalUri);
+        addToGallery(imageToSaveFile);
     }
 
-    void addToGallery(Uri imageUri) {
-
+    void addToGallery(File imageFile) {
         Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        File f = new File(imageUri.getPath());
-        Uri contentUri = Uri.fromFile(f);
-        mediaScanIntent.setData(contentUri);//todo cant it just be imageUri?
+        mediaScanIntent.setData(Uri.fromFile(imageFile));//todo cant it just be imageUri?
         this.sendBroadcast(mediaScanIntent);
-    }
-
-    private TextView getSeekbarTextView(int activeSeekbar) {
-        TextView seekbarLabel = null;
-
-        switch (activeSeekbar) {
-            case R.id.contrast_seekbar:
-                seekbarLabel = findViewById(R.id.contrast_label);
-                break;
-
-            case R.id.exposure_seekbar:
-                seekbarLabel = findViewById(R.id.exposure_label);
-                break;
-
-            case R.id.sharpen_seekbar:
-                seekbarLabel = findViewById(R.id.sharpen_label);
-                break;
-
-            case R.id.saturation_seekbar:
-                seekbarLabel = findViewById(R.id.saturation_label);
-                break;
-        }
-
-        return seekbarLabel;
     }
 }
