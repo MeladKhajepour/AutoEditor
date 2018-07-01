@@ -7,7 +7,7 @@ import android.net.Uri;
 import java.io.File;
 
 abstract class Filter {
-    Context context;
+    private Context context;
     static Uri selectedImageUri;
     static File tempFile;
     int contrastStrength, exposureStrength, sharpnessStrength, saturationStrength;

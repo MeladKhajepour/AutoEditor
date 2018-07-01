@@ -32,11 +32,11 @@ import java.util.List;
 public class Utils {
 
     private static final String PREFERENCES_FILE = "PREFS";
-    public static final int CONTRAST_FILTER = 0;
-    public static final int EXPOSURE_FILTER = 1;
-    public static final int SATURATION_FILTER = 2;
-    public static final int UNSHARP_MASK_SHARPEN = 3;
-    public static final int CONVOLUTION_SHARPEN = 4;
+    private static final int CONTRAST_FILTER = 0;
+    private static final int EXPOSURE_FILTER = 1;
+    private static final int SATURATION_FILTER = 2;
+    private static final int UNSHARP_MASK_SHARPEN = 3;
+    private static final int CONVOLUTION_SHARPEN = 4;
 
     private static int imageScaleX;
     private static int imageScaleY;
@@ -59,7 +59,7 @@ public class Utils {
         }
     }
 
-    public static void requestPermissions(Activity ctx, List<String> permissions) {
+    private static void requestPermissions(Activity ctx, List<String> permissions) {
         ActivityCompat.requestPermissions(ctx, permissions.toArray(new String[permissions.size()]), 0);
     }
 
@@ -68,13 +68,8 @@ public class Utils {
     }
 
     public static boolean allPermissionsGranted(Activity ctx) {
-        if(ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
-            || ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
-
-            return false;
-        }
-
-        return true;
+        return ContextCompat.checkSelfPermission(ctx, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(ctx, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
     }
 
     public static Drawable tintMyDrawable(Drawable drawable, int color) {

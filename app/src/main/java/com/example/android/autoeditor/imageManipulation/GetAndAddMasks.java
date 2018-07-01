@@ -8,13 +8,11 @@ import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.net.Uri;
 import android.widget.Toast;
 
 import com.example.android.autoeditor.tensorFlow.Classifier;
 import com.example.android.autoeditor.tensorFlow.TensorFlowObjectDetectionAPIModel;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -28,9 +26,9 @@ public class GetAndAddMasks {
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
 
     //To get all identified object's mask
-    public  List<Classifier.Recognition> getTFResults(Context context, Uri myUri){
+    public  List<Classifier.Recognition> getTFResults(Context context, Bitmap bitmapForTF){
         Classifier detector = initializeDetector(context);
-        Bitmap bitmapForTF = getScaledBitmap(context, myUri);
+
         Bitmap scaledBitmap = null;
         if (bitmapForTF != null) {
             scaledBitmap = cloneBitmap(bitmapForTF);
@@ -40,19 +38,6 @@ public class GetAndAddMasks {
         }
         List<Classifier.Recognition> tfResults = detectWithTensorFlow(detector, bitmapForTF);
         return applyDetectedObjectToImage(tfResults, scaledBitmap);
-    }
-
-    public Bitmap getScaledBitmap(Context context, Uri myUri){
-        try {
-            return ImageLoadAndSave.decodeSampledBitmapFromResource(context,
-                    myUri,
-                    TF_OD_API_INPUT_SIZE,
-                    TF_OD_API_INPUT_SIZE);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-
-        return null;
     }
 
     public ArrayList<Bitmap> getMask(List<Classifier.Recognition> results,Bitmap scaledBitmap){
@@ -117,13 +102,6 @@ public class GetAndAddMasks {
 
     private List<Classifier.Recognition> applyDetectedObjectToImage(List<Classifier.Recognition> results, Bitmap scaledBitmap){
         List<Classifier.Recognition> mappedRecognitions = new LinkedList<>();
-        final Canvas canvas = new Canvas(scaledBitmap);
-        final Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG |
-                Paint.DITHER_FLAG |
-                Paint.ANTI_ALIAS_FLAG);
-        paint.setColor(Color.RED);
-        paint.setStyle(Paint.Style.STROKE);
-        paint.setStrokeWidth(2.0f);
         Matrix cropToFrameTransform = new Matrix();
 
         mappedRecognitions.clear();
@@ -134,7 +112,6 @@ public class GetAndAddMasks {
                 location.right /= TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getWidth();
                 location.top /= TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getHeight();
                 location.bottom /= TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getHeight();
-                canvas.drawRect(location, paint);
                 cropToFrameTransform.mapRect(location);
                 result.setLocation(location);
                 mappedRecognitions.add(result);
