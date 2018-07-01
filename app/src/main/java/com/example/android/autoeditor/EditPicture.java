@@ -14,9 +14,11 @@ import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import com.example.android.autoeditor.imageManipulation.ImageDectectingMask;
+import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
+import com.example.android.autoeditor.tensorFlow.Classifier;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
@@ -77,10 +79,21 @@ public class EditPicture extends AppCompatActivity {
             myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
         }
 
-        //How to detect the mask
-        ImageDectectingMask process = new ImageDectectingMask();
-        ArrayList<Bitmap> masks = process.getImageWithMasks(ctx, myUri);
-       result.setImageURI(myUri);
+        //How to use GetAndAddMasks class
+        //Initialiaze the class
+        GetAndAddMasks process = new GetAndAddMasks();
+        //Get the tensorflow results
+        List<Classifier.Recognition> tfResults = process.getTFResults(ctx, myUri);
+        //need the scaled bitmap if you want to get masks
+        Bitmap scaledBitmap = process.getScaledBitmap(ctx, myUri);
+        //get the mask in a list of bitmaps
+        ArrayList<Bitmap> masks = process.getMask(tfResults, scaledBitmap);
+        /*Useful if you want to tell user the object identified*/
+       // ArrayList<String> identifiedObjects = process.getObjects(tfResults);
+        //add all the edited bitmaps back
+        Bitmap editedBitmap = process.addBitmapBackToOriginal(tfResults, masks, scaledBitmap);
+        //see the final product!
+       result.setImageBitmap(editedBitmap);
     }
 
     @Override

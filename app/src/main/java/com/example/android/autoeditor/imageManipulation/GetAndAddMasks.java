@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-public class ImageDectectingMask {
+public class GetAndAddMasks {
     private static final int TF_OD_API_INPUT_SIZE = 224;
     private static final String TF_OD_API_MODEL_FILE =
             "frozen_inference_graph.pb";
@@ -28,17 +28,9 @@ public class ImageDectectingMask {
     private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
 
     //To get all identified object's mask
-    public ArrayList<Bitmap> getImageWithMasks(Context context, Uri myUri){
+    public  List<Classifier.Recognition> getTFResults(Context context, Uri myUri){
         Classifier detector = initializeDetector(context);
-        Bitmap bitmapForTF = null;
-        try {
-            bitmapForTF = ImageLoadAndSave.decodeSampledBitmapFromResource(context,
-                    myUri,
-                    TF_OD_API_INPUT_SIZE,
-                    TF_OD_API_INPUT_SIZE);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
+        Bitmap bitmapForTF = getScaledBitmap(context, myUri);
         Bitmap scaledBitmap = null;
         if (bitmapForTF != null) {
             scaledBitmap = cloneBitmap(bitmapForTF);
@@ -47,8 +39,62 @@ public class ImageDectectingMask {
             bitmapForTF = bitmapResizer(bitmapForTF,TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
         }
         List<Classifier.Recognition> tfResults = detectWithTensorFlow(detector, bitmapForTF);
-        tfResults = applyDetectedObjectToImage(tfResults, scaledBitmap);
-        return getMask(tfResults, context, myUri, scaledBitmap);
+        return applyDetectedObjectToImage(tfResults, scaledBitmap);
+    }
+
+    public Bitmap getScaledBitmap(Context context, Uri myUri){
+        try {
+            return ImageLoadAndSave.decodeSampledBitmapFromResource(context,
+                    myUri,
+                    TF_OD_API_INPUT_SIZE,
+                    TF_OD_API_INPUT_SIZE);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public ArrayList<Bitmap> getMask(List<Classifier.Recognition> results,Bitmap scaledBitmap){
+        ArrayList<Bitmap> masks = new ArrayList<>();
+        for (final Classifier.Recognition result : results) {
+            RectF location = result.getLocation();
+            Rect locationRect = new Rect();
+            location.round(locationRect);
+            Bitmap croppedBitmap = Bitmap.createBitmap(scaledBitmap, locationRect.left,
+                    locationRect.top,
+                    locationRect.right - locationRect.left ,
+                    locationRect.bottom - locationRect.top);
+            /*The next line fills the bitmap with color black. I used it to test that edited bitmap was getting added to final bitmap*/
+           // croppedBitmap.eraseColor(Color.BLACK);
+            masks.add(croppedBitmap);
+        }
+        return masks;
+    }
+
+    public ArrayList<String> getObjects(List<Classifier.Recognition> results){
+        ArrayList<String> listOfIdentifiedObjects = new ArrayList<>();
+        for (final Classifier.Recognition result : results) {
+            String identifiedObjects = result.getTitle();
+            listOfIdentifiedObjects.add(identifiedObjects);
+        }
+        return listOfIdentifiedObjects;
+    }
+
+    public Bitmap addBitmapBackToOriginal(List<Classifier.Recognition> results, ArrayList<Bitmap> editedMasks, Bitmap scaledBitmap){
+        int i = 0;
+        Bitmap editedBitmap = cloneBitmap(scaledBitmap);
+        for (final Classifier.Recognition result : results) {
+            Bitmap editedMask = editedMasks.get(i);
+            RectF location = result.getLocation();
+            Rect locationRect = new Rect();
+            location.round(locationRect);
+            final Canvas canvas = new Canvas(editedBitmap);
+            canvas.drawBitmap(editedMask,null,locationRect,null);
+            i++;
+
+        }
+        return editedBitmap;
     }
 
     private Classifier initializeDetector(Context ctx){
@@ -95,21 +141,6 @@ public class ImageDectectingMask {
             }
         }
         return mappedRecognitions;
-    }
-
-    private ArrayList<Bitmap> getMask(List<Classifier.Recognition> results, Context context, Uri uri, Bitmap scaledBitmap){
-        ArrayList<Bitmap> masks = new ArrayList<>();
-        for (final Classifier.Recognition result : results) {
-            RectF location = result.getLocation();
-            Rect locationRect = new Rect();
-            location.round(locationRect);
-            Bitmap croppedBitmap = Bitmap.createBitmap(scaledBitmap, locationRect.left,
-                    locationRect.top,
-                    locationRect.right - locationRect.left ,
-                    locationRect.bottom - locationRect.top);
-            masks.add(croppedBitmap);
-        }
-        return masks;
     }
 
     private Bitmap cloneBitmap(Bitmap bitmap){
