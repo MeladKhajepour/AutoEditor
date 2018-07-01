@@ -1,166 +1,76 @@
 package com.example.android.autoeditor;
 
-import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.RequiresApi;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.SeekBar;
-import android.widget.TextView;
 
-import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
-import com.example.android.autoeditor.tensorFlow.Classifier;
+import com.example.android.autoeditor.filters.Editor;
+import com.example.android.autoeditor.utils.Cluster;
+import com.example.android.autoeditor.utils.Utils;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.Objects;
 
-import static com.example.android.autoeditor.MainActivity.GALLERY_IMAGE;
-import static com.example.android.autoeditor.MainActivity.IMAGE;
+import static com.example.android.autoeditor.filters.Editor.getTempFile;
+import static com.example.android.autoeditor.utils.Utils.getTargetWidth;
 
-@RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
-public class EditPicture extends AppCompatActivity {
+public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAdjustment {
     Button saveButton;
-    ImageView result;
-    Uri myUri;
-    SeekBar contrastSeekbar;
-    SeekBar exposureSeekbar;
-    SeekBar sharpenSeekbar;
-    TextView contrastTextView;
-    TextView exposureTextView;
-    TextView sharpenTextView;
-
-    Context ctx;
+    ImageView mImageView;
+    Cluster exposure, contrast, sharpness, saturation;
+    Bitmap mBitmap;
+    private Editor imageEditor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
-        ctx = getApplicationContext();
 
-        //tries the receive the intent on photo taken
-        result = findViewById(R.id.selected_picture_image_view);
+        imageEditor = new Editor(this, getTargetWidth(), getTargetWidth());//Todo
 
-        //Start of test sliders etc
-     /*   contrastTextView = findViewById(R.id.contrast_label);
-        contrastSeekbar = findViewById(R.id.contrast_seekbar);
-        sharpenSeekbar = findViewById(R.id.sharpen_seekbar);
-        exposureSeekbar = findViewById(R.id.exposure_seekbar);
-        exposureTextView = findViewById(R.id.exposure_label);
-        sharpenTextView = findViewById(R.id.sharpen_label);
+        initUi();
+    }
 
-        contrastSeekbar.setMax(200);
-        exposureSeekbar.setMax(200);
-        sharpenSeekbar.setMax(200);
-        contrastSeekbar.setProgress(100);
-        exposureSeekbar.setProgress(100);
-        sharpenSeekbar.setProgress(100);*/
+    private void initUi() {
 
+        mImageView = findViewById(R.id.selected_picture_image_view);
         saveButton = findViewById(R.id.save_button);
+        saveButton.setOnClickListener(new View.OnClickListener() {
 
+            @Override
+            public void onClick(View v) {
+                saveImage();
+            }
+        });
+
+        initClusters();
+        updatePreview();
+    }
+
+    private void initClusters() {
+        exposure = new Cluster(this, R.id.exposure_seekbar);
+        contrast = new Cluster(this, R.id.contrast_seekbar);
+        sharpness = new Cluster(this, R.id.sharpen_seekbar);
+        saturation = new Cluster(this, R.id.saturation_seekbar);
     }
 
     @Override
-    protected void onStart() {
-        super.onStart();
+    public void updatePreview() {
+        Bitmap image = imageEditor.getPreviewBitmap(); //todo do stuff with bitmaputils class
 
-        Intent intent = getIntent();
-        Bundle extras = getIntent().getExtras();
-
-        if (intent.hasExtra(IMAGE)) {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(IMAGE));
+        if(image != null) {
+            mImageView.setImageBitmap(image);
         } else {
-            myUri = Uri.parse(Objects.requireNonNull(extras).getString(GALLERY_IMAGE));
+            //todo do something if cant set pic
         }
-
-        //How to use GetAndAddMasks class
-        //Initialiaze the class
-        GetAndAddMasks process = new GetAndAddMasks();
-        //Get the tensorflow results
-        List<Classifier.Recognition> tfResults = process.getTFResults(ctx, myUri);
-        //need the scaled bitmap if you want to get masks
-        Bitmap scaledBitmap = process.getScaledBitmap(ctx, myUri);
-        //get the mask in a list of bitmaps
-        ArrayList<Bitmap> masks = process.getMask(tfResults, scaledBitmap);
-        /*Useful if you want to tell user the object identified*/
-       // ArrayList<String> identifiedObjects = process.getObjects(tfResults);
-        //add all the edited bitmaps back
-        Bitmap editedBitmap = process.addBitmapBackToOriginal(tfResults, masks, scaledBitmap);
-        //see the final product!
-       result.setImageBitmap(editedBitmap);
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-
-      /*  contrastSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            Bitmap res;
-
-            @SuppressLint("SetTextI18n")
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(scaledBitmap, progress - 100, CONTRAST_FILTER, ctx);
-                result.setImageBitmap(res);
-                contrastTextView.setText("contrast: " + (progress));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-
-        exposureSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            Bitmap res;
-
-            @SuppressLint("SetTextI18n")
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res = setFilter(scaledBitmap, progress - 100, UNSHARP_MASK_SHARPEN, ctx);
-                result.setImageBitmap(res);
-                exposureTextView.setText("exposure: " + (progress/100f*3f));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-
-        sharpenSeekbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            Bitmap res;
-
-            @SuppressLint("SetTextI18n")
-            @Override
-            public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                res= setFilter(scaledBitmap, progress - 100, CONVOLUTION_SHARPEN, ctx);
-                result.setImageBitmap(res);
-                exposureTextView.setText("Sharpness: " + (progress - 100));
-            }
-
-            @Override
-            public void onStartTrackingTouch(SeekBar seekBar) {
-            }
-
-            @Override
-            public void onStopTrackingTouch(SeekBar seekBar) {
-            }
-        });
-        */
-
     }
 
     @Override
@@ -171,17 +81,39 @@ public class EditPicture extends AppCompatActivity {
     }
 
     @Override
-    public void onSaveInstanceState(Bundle savedInstanceState) {
-        // Save selective extras from original Intent...
-
-        super.onSaveInstanceState(savedInstanceState);
-    }
-
-    @Override
     public void onBackPressed() {
         super.onBackPressed();
         Intent i = new Intent(this, MainActivity.class);
         i.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
         startActivity(i); //goes back to main activity
+    }
+
+    private void saveImage(){
+        File imageToSaveFile = getTempFile();
+
+        FileOutputStream out = null;
+        try {
+            out = new FileOutputStream(Objects.requireNonNull(imageToSaveFile));
+            mBitmap.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
+            // PNG is a lossless format, the compression factor (100) is ignored
+        } catch (Exception e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (out != null) {
+                    out.close();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        addToGallery(imageToSaveFile);
+    }
+
+    void addToGallery(File imageFile) {
+        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        mediaScanIntent.setData(Uri.fromFile(imageFile));//todo cant it just be imageUri?
+        this.sendBroadcast(mediaScanIntent);
     }
 }

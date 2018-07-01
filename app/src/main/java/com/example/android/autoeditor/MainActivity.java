@@ -1,7 +1,6 @@
 package com.example.android.autoeditor;
 
 import android.Manifest;
-import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
@@ -11,78 +10,55 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.support.annotation.NonNull;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.content.FileProvider;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.ViewTreeObserver;
+import android.widget.ImageButton;
 import android.widget.Toast;
-
-import com.example.android.autoeditor.floatingToolbar.FloatBar;
-import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.Locale;
 
-import static com.example.android.autoeditor.utils.Utils.PERMISSIONS_REQUEST_ID;
+import static com.example.android.autoeditor.filters.Editor.getImageUri;
+import static com.example.android.autoeditor.filters.Editor.setImageUri;
+import static com.example.android.autoeditor.filters.Editor.setTempFile;
+import static com.example.android.autoeditor.utils.Utils.readSharedSetting;
+import static com.example.android.autoeditor.utils.Utils.requestPermission;
+import static com.example.android.autoeditor.utils.Utils.setViewDimens;
 
 public class MainActivity extends AppCompatActivity {
-    public static final String IMAGE = "image";
-    public static final String GALLERY_IMAGE = "galleryImage";
-    public static final int CAMERA_REQUEST_CODE = 1;
-    public static final int MEDIA_REQUEST_CODE = 2;
+    public static final int CAMERA_REQUEST_CODE = (int) Math.floor(7*Math.random()*100);
+    public static final int MEDIA_REQUEST_CODE = (int) Math.floor(11*Math.random()*100);
     public static final String PREF_USER_FIRST_TIME = "user_first_time";
 
-    private static final String TAG = MainActivity.class.getSimpleName();
-
     boolean isUserFirstTime;
-    private FloatBar floatBar;
-    private FloatingActionButton fab;
-    private Intent startEditPictureActivity;
-    private Uri photoURI;
-    private Activity that;
+    private Activity mainActivity;
+    private ImageButton cameraBtn, galleryBtn;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        isUserFirstTime = Boolean.valueOf(Utils.readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
-        that = this;
-
-        if (isUserFirstTime) {
-            Intent introIntent = new Intent(MainActivity.this, Onboarding.class);
-            introIntent.putExtra(PREF_USER_FIRST_TIME, isUserFirstTime);
-
-            startActivity(introIntent);
-        }
-
         setContentView(R.layout.activity_main);
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+        mainActivity = this;
 
-        initFloatBar();
-
-        startEditPictureActivity = new Intent(this, EditPicture.class);
-    }
-
-    @Override
-    public void onBackPressed() {
-        floatBar.hide();
+        checkOnboarding();
+        precalculateImageViewSize();
+        initImageSelectionBtns();
     }
 
     @Override
@@ -109,172 +85,233 @@ public class MainActivity extends AppCompatActivity {
         return super.onOptionsItemSelected(item);
     }
 
-    private void cameraIntent(){
-        Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-        File photoFile = null;
-        try {
-            photoFile = createImageFile();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        photoURI = FileProvider.getUriForFile(MainActivity.this, BuildConfig.APPLICATION_ID, Objects.requireNonNull(photoFile));
-        takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI);
-        takePictureIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivityForResult(takePictureIntent, CAMERA_REQUEST_CODE);
+    private void checkOnboarding() {
+        isUserFirstTime = Boolean.valueOf(readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
 
+        if (isUserFirstTime) {
+            startActivity(new Intent(mainActivity, Onboarding.class));
+        }
     }
 
-    private void galleryIntent() {
-        Intent getIntent = new Intent(Intent.ACTION_GET_CONTENT);
-        getIntent.setType("image/*");
+    private void precalculateImageViewSize() {
+        final View view = findViewById(R.id.ghost_view);
+        ViewTreeObserver vto = view.getViewTreeObserver();
+        vto.addOnGlobalLayoutListener (new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                view.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                setViewDimens(view);
+            }
+        });
+    }
 
-        Intent pickIntent = new Intent(Intent.ACTION_PICK, android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
-        pickIntent.setType("image/*");
+    private void initImageSelectionBtns() {
+        cameraBtn = findViewById(R.id.add_from_camera);
+        galleryBtn = findViewById(R.id.add_from_gallery);
+        View.OnClickListener listener = new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                switch (v.getId()) {
+                    case R.id.add_from_camera:
+                        selectFromCamera();
+                        break;
 
-        Intent chooserIntent = Intent.createChooser(getIntent, "Select Image");
-        chooserIntent.putExtra(Intent.EXTRA_INITIAL_INTENTS, new Intent[] {pickIntent});
-        startActivityForResult(Intent.createChooser(chooserIntent, "Select File"), MEDIA_REQUEST_CODE);
+                    case R.id.add_from_gallery:
+                        selectFromGallery();
+                        break;
+                }
+            }
+        };
+
+        for(ImageButton btn : new ImageButton[] {cameraBtn, galleryBtn}) {
+            btn.setOnClickListener(listener);
+        }
+    }
+
+    private void selectFromCamera() {
+        String permission = Manifest.permission.CAMERA;
+        if(hasPermission(permission)) {
+            Intent launchCameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+            try {
+                if (launchCameraIntent.resolveActivity(getPackageManager()) != null
+                        && createDesinationFileUri()) {
+
+                    launchCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, getImageUri());
+
+                    startActivityForResult(Intent.createChooser(launchCameraIntent, "Take Picture Using"), CAMERA_REQUEST_CODE);
+                } else {
+                    //todo make alert signaling of no image directory and prompt to maybe make one
+                }
+            } catch (IOException e) {
+                Snackbar.make(cameraBtn, "Could not create image file... ", Toast.LENGTH_SHORT);
+                e.printStackTrace();
+            }
+        } else {
+            askPermission(permission, CAMERA_REQUEST_CODE);
+        }
+    }
+
+    private boolean hasPermission(String permission) {
+        return ContextCompat.checkSelfPermission(mainActivity, permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void askPermission(String permission, int code) {
+        ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
+    }
+
+    private boolean createDesinationFileUri() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
+        String imageFileSuffix = ".jpg";
+        String imageFileName = "AutoEdit_" + timeStamp;
+        File imagesDirectory = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+
+        if(imagesDirectory != null) {
+            imagesDirectory = new File(imagesDirectory + "/AutoEdits");
+
+            if(!imagesDirectory.isDirectory() && !imagesDirectory.exists()) {
+                imagesDirectory.mkdirs();
+            }
+
+            File tempFile = File.createTempFile(imageFileName, imageFileSuffix, imagesDirectory);
+            Uri uri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, tempFile);
+
+            setTempFile(tempFile);
+            setImageUri(uri);
+            return true;
+        }
+
+        return false;
+    }
+
+    private void selectFromGallery() {
+        String permission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
+        if(hasPermission(permission)) {
+            Intent fileBrowserIntent = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*");//file browser
+
+            if (fileBrowserIntent.resolveActivity(getPackageManager()) != null) {
+                startActivityForResult(Intent.createChooser(fileBrowserIntent, "Select Image From"), MEDIA_REQUEST_CODE);
+
+            } else if(fileBrowserIntent.resolveActivity(getPackageManager()) == null) {// user has no file browser so try gallery
+                Intent imageBrowserIntent = new Intent(Intent.ACTION_PICK).setType("image/*");//image browser
+                startActivityForResult(Intent.createChooser(imageBrowserIntent, "Select Image From"), MEDIA_REQUEST_CODE);
+
+            } else {
+                //todo make dialog signaling to user no file picker or gallery app is available
+            }
+        } else {
+            askPermission(permission, MEDIA_REQUEST_CODE);
+        }
     }
 
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
-        Log.d("in", "It is: " + Activity.RESULT_OK);
-        if (requestCode == CAMERA_REQUEST_CODE) {
-            if (resultCode == Activity.RESULT_OK) {
-                try {
-                    // Create the File where the photo should go
-                    startEditPictureActivity.putExtra(IMAGE, photoURI.toString());
-                    startActivity(startEditPictureActivity);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        else if (requestCode == MEDIA_REQUEST_CODE) {
-            if (resultCode == Activity.RESULT_OK) {
-                try {
-                    final Uri imageUri = intent.getData();
-                    startEditPictureActivity.putExtra(GALLERY_IMAGE, Objects.requireNonNull(imageUri).toString());
-                    startActivity(startEditPictureActivity);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-        }
         super.onActivityResult(requestCode, resultCode, intent);
+        Intent editImageActivity = new Intent(this, EditPicture.class);
+
+        if (requestCode == CAMERA_REQUEST_CODE &&  resultCode == Activity.RESULT_OK) {
+            startActivity(editImageActivity);
+
+        } else if (requestCode == MEDIA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
+            Uri imageUri = intent.getData();
+
+            if(imageUri != null) {
+                setImageUri(imageUri);
+                startActivity(editImageActivity);
+
+            } else {
+                //todo alert user something isnt right and couldnt get selected image
+                Toast.makeText(this, "Hmm, something didn't quite go right...", Toast.LENGTH_LONG).show();
+            }
+        }
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String permissions[], @NonNull int[] grantResults) {
+        final String permission = permissions[0];
 
-        for (int i = 0, len = permissions.length; i < len; i++) {
-            final String permission = permissions[i];
-            if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
-                // user rejected the permission
-                boolean showRationale = ActivityCompat.shouldShowRequestPermissionRationale(that, permission);
-                if (! showRationale) {
-                    // user also CHECKED "never ask again"
-                    // you can either enable some fall back,
-                    // disable features of your app
-                    // or open another dialog explaining
-                    // again the permission and directing to
-                    // the app setting
-                    if(Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) {
-                        Snackbar.make(fab, "File access required", Snackbar.LENGTH_LONG)
-                                .show();
-                    } else if (Manifest.permission.CAMERA.equals(permission)) {
-                        Snackbar.make(fab, "Camera access required", Snackbar.LENGTH_LONG)
-                                .show();
-                    }
-                } else if (Manifest.permission.WRITE_EXTERNAL_STORAGE.equals(permission)) {
+        if(grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            switch (permission) {
+                case Manifest.permission.WRITE_EXTERNAL_STORAGE:
+                    selectFromGallery();
+                    break;
 
-                    new AlertDialog.Builder(this).setTitle("File Access Denied")
-                            .setMessage("File access is required for loading images to the app and saving the edited images")
-                            .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Utils.requestPermission(that, Arrays.asList(permission));
-                                }
-                            })
-                            .setNegativeButton("Later", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Snackbar.make(fab, "File access required", Snackbar.LENGTH_LONG)
-                                            .show();
-                                }
-                            })
-                            .create()
-                            .show();
-                } else if (Manifest.permission.CAMERA.equals(permission)) {
-                    new AlertDialog.Builder(this).setTitle("Camera Access Denied")
-                            .setMessage("Camera access is required for taking pictures")
-                            .setPositiveButton("Grant", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Utils.requestPermission(that, Arrays.asList(permission));
-                                }
-                            })
-                            .setNegativeButton("Later", new DialogInterface.OnClickListener() {
-                                @Override
-                                public void onClick(DialogInterface dialog, int which) {
-                                    Snackbar.make(fab, "Camera access required", Snackbar.LENGTH_LONG)
-                                            .show();
-                                }
-                            })
-                            .create()
-                            .show();
+                case Manifest.permission.CAMERA:
+                    selectFromCamera();
+                    break;
+            }
+
+        } else if (grantResults[0] == PackageManager.PERMISSION_DENIED ) {
+
+            if (! ActivityCompat.shouldShowRequestPermissionRationale(mainActivity, permission)) { // Never show again is selected
+
+                switch (permission) {
+                    case Manifest.permission.WRITE_EXTERNAL_STORAGE:
+                        makePermissionSnackbar(galleryBtn, "File access is denied");
+                        break;
+
+                    case Manifest.permission.CAMERA:
+                        makePermissionSnackbar(cameraBtn, "Camera access is denied");
+                        break;
                 }
+
+                return;
+            }
+
+            switch (permission) {
+                case Manifest.permission.WRITE_EXTERNAL_STORAGE:
+
+                    makePermissionAlert(
+                            permission,
+                            "File Access is Denied",
+                            "File access is required for loading images to the app and saving the edited images");
+                    break;
+
+                case Manifest.permission.CAMERA:
+
+                    makePermissionAlert(
+                            permission,
+                            "Camera Access is Denied",
+                            "Camera access is required for taking pictures");
+                    break;
             }
         }
     }
 
-    private File createImageFile() throws IOException {
-        // Create an image file name
-        @SuppressLint("SimpleDateFormat") String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "JPEG_" + timeStamp + "_";
-        File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        return File.createTempFile(
-                imageFileName,  /* prefix */
-                ".jpg",         /* suffix */
-                storageDir      /* directory */
-        );
+    private void makePermissionAlert(final String permission, String title, String message) {
+        AlertDialog.Builder alert = new AlertDialog.Builder(this);
+
+        alert.setTitle(title);
+        alert.setMessage(message);
+
+        alert.setPositiveButton("Grant", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        requestPermission(mainActivity, permission);
+                    }
+                })
+                .setNegativeButton("Later", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+
+                    }
+                });
+
+        alert.create().show();
     }
 
-    private void initFloatBar() {
-
-        floatBar  = findViewById(R.id.fabtoolbar);
-        fab = findViewById(R.id.fab);
-        floatBar.attachFab(fab);
-
-        floatBar.setClickListener(new FloatBar.ItemClickListener() {
-            @Override
-            public void onItemClick(MenuItem item) {
-
-                switch (item.getItemId()) {
-
-                    case R.id.add_from_camera:
-                        if (ContextCompat.checkSelfPermission(that, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            cameraIntent();
-                        } else {
-                            ActivityCompat.requestPermissions(that, new String[] {Manifest.permission.CAMERA}, PERMISSIONS_REQUEST_ID);
-                        }
-                        break;
-
-                    case R.id.add_from_gallery:
-                        if (ContextCompat.checkSelfPermission(that, Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
-                            galleryIntent();
-                        } else {
-                            ActivityCompat.requestPermissions(that, new String[] {Manifest.permission.WRITE_EXTERNAL_STORAGE}, PERMISSIONS_REQUEST_ID);
-                        }
-                        break;
-
-                }
-            }
-
-            @Override
-            public void onItemLongClick(MenuItem item) {
-
-            }
-        });
+    private void makePermissionSnackbar(View v, String message) {
+        Snackbar.make(v, message, Snackbar.LENGTH_LONG)
+                .setAction("Grant", new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        Intent intent = new Intent();
+                        intent.setAction(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                        Uri uri = Uri.fromParts("package", getPackageName(), null);
+                        intent.setData(uri);
+                        startActivity(intent);
+                    }
+                })
+                .show();
     }
 }

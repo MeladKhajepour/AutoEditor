@@ -1,17 +1,33 @@
 <resources>
-    <string name="app_name">Exciting App Title!</string>
+    <string name="app_name">Exciting App Title!</string> <!--Main Activity Strings-->
     <string name="action_settings">Settings</string>
     <string name="how_app_works">How it works</string>
-    <string name="select_from_gallery">Choose an image from gallery</string>
-    <string name="select_from_camera">Take a picture</string>
-    <string name="edit_picture_Image">Selected Pictures to Edit</string>
+    <string name="add_from_gallery">Choose an image from gallery</string>
+    <string name="add_from_camera">Take a picture</string>
+
+    <string name="edit_picture_Image">Selected Pictures to Edit</string> <!--Edit Page Strings-->
     <string name="save">Save</string>
-    <string name="title_activity_onboarding">Onboarding</string>
+
+    <string name="title_activity_onboarding">Onboarding</string> <!--Onboarding Strings-->
     <string name="page_1_header">Page 1 Header</string>
     <string name="page_1_desc">Page 1 Desc</string>
     <string name="page_2_header">Page 2 Header</string>
     <string name="page_2_desc">Page 2 Desc</string>
     <string name="page_3_header">First we need to ask for a couple permissions</string>
-    <string name="page_3_desc">This app requires filesystem access to open images and save them, as well as camera access to capture new images.</string>
+    <string name="page_3_desc">This app requires filesystem access to open images and save them,
+        as well as camera access to capture new images.</string>
+    <string name="onboarding_alert_title">Are you sure?</string>
+    <string name="onboarding_alert_body_camera">Without permission to take pictures, you will not be
+        able to quickly and easily auto-edit images taken right from your preferred camera app</string>
+    <string name="onboarding_alert_body_gallery">Without permission to access photos on your device, you
+        will not be able to auto-edit pictures you have already taken or saved</string>
+    <string name="onboarding_alert_body_both">Without permissions to access photos on your device
+        or to take pictures, you will not be able to auto-edit any images</string>
+    <string name="onboarding_alert_positive_btn">Grant</string>
+    <string name="onboarding_alert_negative_btn">Later</string>
+
+    <string name="exposure">Exposure:</string> <!--Editor Strings-->
     <string name="contrast">Contrast:</string>
+    <string name="sharpness">Sharpness:</string>
+    <string name="saturation">Saturation:</string>
 </resources>
