@@ -140,8 +140,6 @@ public class MainActivity extends AppCompatActivity {
                     launchCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, getImageUri());
 
                     startActivityForResult(Intent.createChooser(launchCameraIntent, "Take Picture Using"), CAMERA_REQUEST_CODE);
-                } else {
-                    //todo make alert signaling of no image directory and prompt to maybe make one
                 }
             } catch (IOException e) {
                 Snackbar.make(cameraBtn, "Could not create image file... ", Toast.LENGTH_SHORT);
@@ -196,8 +194,6 @@ public class MainActivity extends AppCompatActivity {
                 Intent imageBrowserIntent = new Intent(Intent.ACTION_PICK).setType("image/*");//image browser
                 startActivityForResult(Intent.createChooser(imageBrowserIntent, "Select Image From"), MEDIA_REQUEST_CODE);
 
-            } else {
-                //todo make dialog signaling to user no file picker or gallery app is available
             }
         } else {
             askPermission(permission, MEDIA_REQUEST_CODE);

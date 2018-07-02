@@ -1,8 +1,11 @@
 package com.example.android.autoeditor;
 
+import android.app.ProgressDialog;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
@@ -11,12 +14,16 @@ import android.widget.Button;
 import android.widget.ImageView;
 
 import com.example.android.autoeditor.filters.Editor;
+import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
+import com.example.android.autoeditor.tensorFlow.Classifier;
 import com.example.android.autoeditor.utils.Cluster;
-import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 import static com.example.android.autoeditor.filters.Editor.getTempFile;
@@ -34,7 +41,9 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
     Button saveButton;
     ImageView mImageView;
     Cluster exposure, contrast, sharpness, saturation;
-    Bitmap mBitmap;
+    Bitmap editedBitmap;
+    Bitmap image;
+    Context context;
     private Editor imageEditor;
 
     @Override
@@ -43,6 +52,7 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         setContentView(R.layout.activity_edit_picture);
 
         imageEditor = new Editor(this, getTargetWidth(), getTargetWidth());//Todo
+        context = EditPicture.this;
 
         initUi();
     }
@@ -68,17 +78,67 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         contrast = new Cluster(this, R.id.contrast_seekbar);
         sharpness = new Cluster(this, R.id.sharpen_seekbar);
         saturation = new Cluster(this, R.id.saturation_seekbar);
+        new LoadDataForActivity(this).execute();
     }
 
     @Override
     public void updatePreview() {
-        Bitmap image = imageEditor.getPreviewBitmap(); //todo do stuff with bitmaputils class
 
-        if(image != null) {
-            mImageView.setImageBitmap(image);
-        } else {
-            //todo do something if cant set pic
+    }
+
+    private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
+        ProgressDialog pd;
+
+        //need to do this as Async task was not being static was causing memory leak
+        private WeakReference<EditPicture> activityReference;
+
+        // only retain a weak reference to the activity
+        LoadDataForActivity(EditPicture context) {
+            activityReference = new WeakReference<>(context);
         }
+
+        @Override
+        protected void onPreExecute() {
+            EditPicture activity = activityReference.get();
+
+            activity.image = activity.imageEditor.getPreviewBitmap(); //todo do stuff with bitmaputils class
+            pd = new ProgressDialog(activity);
+            pd.setTitle("Can't rush perfection!");
+            pd.setMessage("Identifying your image...");
+            pd.setCancelable(false);
+            pd.show();
+        }
+        @Override
+        protected Void doInBackground(Void... params) {
+            EditPicture activity = activityReference.get();
+            //How to use GetAndAddMasks class
+            //Initialize the class
+            GetAndAddMasks process = new GetAndAddMasks();
+            //Get the tensorflow results
+            List<Classifier.Recognition> tfResults = process.getTFResults(activity, activity.image);
+            //get the mask in a list of bitmaps
+            ArrayList<Bitmap> masks = process.getMask(tfResults, activity.image);
+            /*Useful if you want to tell user the object identified*/
+            // ArrayList<String> identifiedObjects = process.getObjects(tfResults);
+            //add all the edited bitmaps back
+            activity.editedBitmap = process.addBitmapBackToOriginal(tfResults, masks, activity.image);
+            return null;
+        }
+
+        @SuppressWarnings("InfiniteRecursion")
+        @Override
+        protected void onProgressUpdate(Void... values) {
+            onProgressUpdate(values);
+        }
+
+
+        @Override
+        protected void onPostExecute(Void result) {
+            EditPicture activity = activityReference.get();
+            activity.mImageView.setImageBitmap(activity.editedBitmap);
+            pd.dismiss();
+        }
+
     }
 
     @Override
@@ -102,7 +162,7 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         FileOutputStream out = null;
         try {
             out = new FileOutputStream(Objects.requireNonNull(imageToSaveFile));
-            mBitmap.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
+            image.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
             // PNG is a lossless format, the compression factor (100) is ignored
         } catch (Exception e) {
             e.printStackTrace();
