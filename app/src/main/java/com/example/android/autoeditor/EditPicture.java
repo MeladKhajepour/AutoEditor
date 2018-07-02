@@ -22,6 +22,14 @@ import java.util.Objects;
 import static com.example.android.autoeditor.filters.Editor.getTempFile;
 import static com.example.android.autoeditor.utils.Utils.getTargetWidth;
 
+/*
+*
+* This class is for handling the edit pic activity. It is responsible for:
+*   Setting the image bitmap
+*   Providing the UI for editing the bitmap
+*   Saving the final image
+*
+ */
 public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAdjustment {
     Button saveButton;
     ImageView mImageView;

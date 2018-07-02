@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
@@ -15,6 +16,7 @@ import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
+import android.provider.MediaStore;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
 import android.renderscript.RenderScript;
@@ -26,8 +28,11 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.view.View;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static com.example.android.autoeditor.filters.Editor.getImageUri;
 
 public class Utils {
 
@@ -121,7 +126,14 @@ public class Utils {
         return imageScaleY;
     }
 
-    public static Bitmap setFilter(Bitmap bmp, float value, int filter, Context ctx){
+    public static Bitmap setFilter(float value, int filter, Context ctx){
+
+        Bitmap bmp = null;
+        try {
+            bmp = MediaStore.Images.Media.getBitmap(ctx.getContentResolver(), getImageUri());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
 
         ColorMatrix cm = new ColorMatrix();
 

@@ -10,11 +10,27 @@ import com.example.android.autoeditor.R;
 
 import java.util.Locale;
 
+import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
+import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
+import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
+import static com.example.android.autoeditor.utils.Utils.SATURATION_FILTER;
+import static com.example.android.autoeditor.utils.Utils.setFilter;
+
+/*
+*
+* This class is responsible for containing and handling the UI elements for
+* filtering the image in EditPicture activity. It is responsible for:
+*   Initializing the seekbar
+*   Setting the label and strength on seekbar change
+*   Setting the filter type
+*
+ */
 public class Cluster {
     private final EditPicture activity;
     private final SeekBar seekBar;
     private TextView textView;
     private String prefix;
+    private int filterType;
     private int strength = 0;
 
     public Cluster(EditPicture activity, int seekBarId) {
@@ -25,21 +41,25 @@ public class Cluster {
             case R.id.exposure_seekbar:
                 textView = activity.findViewById(R.id.exposure_label);
                 prefix = activity.getResources().getString(R.string.exposure);
+                filterType = EXPOSURE_FILTER;
                 break;
 
             case R.id.contrast_seekbar:
                 textView = activity.findViewById(R.id.contrast_label);
                 prefix = activity.getResources().getString(R.string.contrast);
+                filterType = CONTRAST_FILTER;
                 break;
 
             case R.id.sharpen_seekbar:
                 textView = activity.findViewById(R.id.sharpen_label);
                 prefix = activity.getResources().getString(R.string.sharpness);
+                filterType = CONVOLUTION_SHARPEN;
                 break;
 
             case R.id.saturation_seekbar:
                 textView = activity.findViewById(R.id.saturation_label);
                 prefix = activity.getResources().getString(R.string.saturation);
+                filterType = SATURATION_FILTER;
                 break;
         }
 
@@ -77,6 +97,7 @@ public class Cluster {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 strength = progress - 100;
 
+                setFilter(strength, filterType, activity);
                 updateLabel(prefix, strength);
                 updatePreview();
             }
