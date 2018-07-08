@@ -2,24 +2,38 @@ package com.example.android.autoeditor.filters;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 
 import com.example.android.autoeditor.R;
-import com.example.android.autoeditor.utils.BitmapUtils;
+import com.example.android.autoeditor.utils.Cluster;
 
-import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 
-public class Editor extends Filter {
+import static com.example.android.autoeditor.utils.BitmapUtils.calculateInSampleSize;
+import static com.example.android.autoeditor.utils.BitmapUtils.rotateImageIfRequired;
+import static com.example.android.autoeditor.utils.Utils.getPreviewHeight;
+import static com.example.android.autoeditor.utils.Utils.getPreviewWidth;
 
-    public Editor(Context context, int width, int height) {
-        super(context);
+public class Editor {
+    private static Uri contentUri;
+    private Context ctx;
+    private Cluster exposure, contrast, sharpness, saturation;
+    private int contrastStrength, exposureStrength, sharpnessStrength, saturationStrength;
+    private Bitmap originalImg, mutablePreviewImg;//Original picture should never be laoded in memory till save
 
-        originalPreviewBitmap = BitmapUtils.resizeBitmapToPreview(context, width, height);
+    public Editor(Context ctx) throws IOException {
+        this.ctx = ctx;
+        createPreviewBitmap();
+    }
+
+    public Bitmap getOriginalBitmap() {
+        return originalImg;
     }
 
     public Bitmap getPreviewBitmap() {
-
-        return originalPreviewBitmap;
+        return mutablePreviewImg;
     }
 
     public void setFilterStrength(int sliderProgress, int activeSeekbar) {
@@ -42,19 +56,26 @@ public class Editor extends Filter {
         }
     }
 
-    public static void setImageUri(Uri uri) {
-        selectedImageUri = uri;
+    private void createPreviewBitmap() throws IOException {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inMutable = true;
+        options.inJustDecodeBounds = true;
+
+        InputStream is = ctx.getContentResolver().openInputStream(contentUri);
+        BitmapFactory.decodeStream(is, null, options);
+        is.close();
+
+        options.inSampleSize = calculateInSampleSize(options, getPreviewWidth(), getPreviewHeight());
+        options.inJustDecodeBounds = false;
+
+        is = ctx.getContentResolver().openInputStream(contentUri);
+        mutablePreviewImg = BitmapFactory.decodeStream(is, null, options);
+        is.close();
+
+        mutablePreviewImg = rotateImageIfRequired(ctx, mutablePreviewImg, contentUri);
     }
 
-    public static Uri getImageUri() {
-        return selectedImageUri;
-    }
-
-    public static void setTempFile(File file) {
-        tempFile = file;
-    }
-
-    public static File getTempFile() {
-        return tempFile;
+    public static void setContentUri(Uri uri) {
+        contentUri = uri;
     }
 }

@@ -14,7 +14,7 @@ import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
 import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
 import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
 import static com.example.android.autoeditor.utils.Utils.SATURATION_FILTER;
-import static com.example.android.autoeditor.utils.Utils.setFilter;
+import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
 
 /*
 *
@@ -53,7 +53,7 @@ public class Cluster {
             case R.id.sharpen_seekbar:
                 textView = activity.findViewById(R.id.sharpen_label);
                 prefix = activity.getResources().getString(R.string.sharpness);
-                filterType = CONVOLUTION_SHARPEN;
+                filterType = UNSHARP_MASK_SHARPEN;
                 break;
 
             case R.id.saturation_seekbar:
@@ -64,6 +64,7 @@ public class Cluster {
         }
 
         initSeekbar();
+        updateLabel(prefix, strength);
     }
 
     public SeekBar getSeekBar() {
@@ -82,8 +83,13 @@ public class Cluster {
         activity.updatePreview();
     }
 
+    private void applyFilter(int strength, int filterType) {
+        activity.applyFilter(strength, filterType);
+    }
+
     private void initSeekbar() {
         seekBar.setMax(200);
+        seekBar.setProgress(100);
         seekBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
             boolean inDoubleTapWindow = false;
             int initialProgress = 0;
@@ -97,7 +103,7 @@ public class Cluster {
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 strength = progress - 100;
 
-                setFilter(strength, filterType, activity);
+                applyFilter(strength, filterType);
                 updateLabel(prefix, strength);
                 updatePreview();
             }
@@ -105,7 +111,7 @@ public class Cluster {
             @Override
             public void onStopTrackingTouch(final SeekBar seekBar) {
 
-                if(inDoubleTapWindow && Math.abs(initialProgress - seekBar.getProgress()) <= 10) {
+                if(inDoubleTapWindow && Math.abs(initialProgress - seekBar.getProgress()) <= 25) {
                     reset();
                     return;
                 }
@@ -130,8 +136,6 @@ public class Cluster {
                 updateLabel(prefix, strength);
             }
         });
-
-        resetCluster();
     }
 
     private void resetCluster() {
@@ -151,5 +155,6 @@ public class Cluster {
 
     public interface OnFilterAdjustment {
         void updatePreview();
+        void applyFilter(int strength, int filterType);
     }
 }

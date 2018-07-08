@@ -27,7 +27,7 @@ public interface Classifier {
   /**
    * An immutable result returned by a Classifier describing what was recognized.
    */
-  class Recognition {
+  class Entity {
     /**
      * A unique identifier for what has been recognized. Specific to the class, not the instance of
      * the object.
@@ -47,7 +47,7 @@ public interface Classifier {
     /** Optional location within the source image for the location of the recognized object. */
     private RectF location;
 
-    Recognition(
+    Entity(
             final String id, final String title, final Float confidence, final RectF location) {
       this.id = id;
       this.title = title;
@@ -99,7 +99,7 @@ public interface Classifier {
     }
   }
 
-  List<Recognition> recognizeImage(Bitmap bitmap);
+  List<Entity> recognizeEntities(Bitmap bitmap);
 
   void enableStatLogging(final boolean debug);
 

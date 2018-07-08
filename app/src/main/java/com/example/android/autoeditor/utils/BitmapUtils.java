@@ -5,55 +5,17 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.net.Uri;
-import android.os.Build;
 import android.support.media.ExifInterface;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Objects;
 
-import static com.example.android.autoeditor.filters.Editor.getImageUri;
+public class BitmapUtils {//original bitmap should never be loaded in memory until save
 
-public class BitmapUtils {
-
-    public static Bitmap resizeBitmapToPreview(Context ctx, int reqWidth, int reqHeight) {
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        Bitmap img = null;
-
-        try {
-            InputStream imageStream = ctx.getContentResolver().openInputStream(getImageUri());
-            BitmapFactory.decodeStream(imageStream, null, options);
-            Objects.requireNonNull(imageStream).close();
-
-            // Calculate inSampleSize
-            options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight);
-
-            // Decode bitmap with inSampleSize set
-            options.inJustDecodeBounds = false;
-            imageStream = ctx.getContentResolver().openInputStream(getImageUri());
-            img = BitmapFactory.decodeStream(imageStream, null, options);
-            options.inJustDecodeBounds = true;
-
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        Bitmap i = null;
-
-        try {
-            i = rotateImageIfRequired(ctx, img, getImageUri());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        return i;
-    }
-
-    private static int calculateInSampleSize(
-            BitmapFactory.Options options, int reqWidth, int reqHeight) {
+    public static int calculateInSampleSize(BitmapFactory.Options options, int reqWidth, int reqHeight) {
         // Raw height and width of image
-        final int height = options.outHeight;
-        final int width = options.outWidth;
+        int height = options.outHeight;
+        int width = options.outWidth;
         int inSampleSize = 1;
 
         if (height > reqHeight || width > reqWidth) {
@@ -63,8 +25,7 @@ public class BitmapUtils {
 
             // Calculate the largest inSampleSize value that is a power of 2 and keeps both
             // height and width larger than the requested height and width.
-            while ((halfHeight / inSampleSize) >= reqHeight
-                    && (halfWidth / inSampleSize) >= reqWidth) {
+            while ((halfHeight / inSampleSize) >= reqHeight && (halfWidth / inSampleSize) >= reqWidth) {
                 inSampleSize *= 2;
             }
         }
@@ -72,14 +33,22 @@ public class BitmapUtils {
         return inSampleSize;
     }
 
-    private static Bitmap rotateImageIfRequired(Context ctx, Bitmap img, Uri selectedImage) throws IOException {
+    //bitmap is mutable
+    public static Bitmap rotateImageIfRequired(Context ctx, Bitmap img, Uri imageUri) {
 
-        InputStream input = ctx.getContentResolver().openInputStream(selectedImage);
         ExifInterface ei;
-        if (Build.VERSION.SDK_INT > 23)
-            ei = new ExifInterface(Objects.requireNonNull(input));
-        else
-            ei = new ExifInterface(selectedImage.getPath());
+
+        try {
+            InputStream input = ctx.getContentResolver().openInputStream(imageUri);
+            if(input != null) {
+                ei = new ExifInterface(input);
+            } else {
+                throw new Exception("InputStream failed to open");
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return img;
+        }
 
         int orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
 
@@ -95,11 +64,12 @@ public class BitmapUtils {
         }
     }
 
+    //bitmap is mutable
     private static Bitmap rotateImage(Bitmap img, int degree) {
         Matrix matrix = new Matrix();
         matrix.postRotate(degree);
-        Bitmap rotatedImg = Bitmap.createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
-        img.recycle();
-        return rotatedImg;
+        img = Bitmap.createBitmap(img, 0, 0, img.getWidth(), img.getHeight(), matrix, true);
+
+        return img;
     }
 }

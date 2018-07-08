@@ -27,14 +27,11 @@ import android.widget.Toast;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-import static com.example.android.autoeditor.filters.Editor.getImageUri;
-import static com.example.android.autoeditor.filters.Editor.setImageUri;
-import static com.example.android.autoeditor.filters.Editor.setTempFile;
+import static com.example.android.autoeditor.filters.Editor.setContentUri;
 import static com.example.android.autoeditor.utils.Utils.readSharedSetting;
 import static com.example.android.autoeditor.utils.Utils.requestPermission;
 import static com.example.android.autoeditor.utils.Utils.setViewDimens;
@@ -134,12 +131,16 @@ public class MainActivity extends AppCompatActivity {
             Intent launchCameraIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
             try {
-                if (launchCameraIntent.resolveActivity(getPackageManager()) != null
-                        && createDesinationFileUri()) {
+                if (launchCameraIntent.resolveActivity(getPackageManager()) != null) {
 
-                    launchCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, getImageUri());
+                    Uri imageUri = createDesinationFileUri();
 
-                    startActivityForResult(Intent.createChooser(launchCameraIntent, "Take Picture Using"), CAMERA_REQUEST_CODE);
+                    if(imageUri != null) {
+                        launchCameraIntent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+                        startActivityForResult(Intent.createChooser(launchCameraIntent, "Take Picture Using"), CAMERA_REQUEST_CODE);
+                    } else {
+                        //todo something if fails
+                    }
                 }
             } catch (IOException e) {
                 Snackbar.make(cameraBtn, "Could not create image file... ", Toast.LENGTH_SHORT);
@@ -154,11 +155,11 @@ public class MainActivity extends AppCompatActivity {
         return ContextCompat.checkSelfPermission(mainActivity, permission) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void askPermission(String permission, int code) {
+    private void askPermission(String permission, int code) {//todo ask for both perms
         ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
     }
 
-    private boolean createDesinationFileUri() throws IOException {
+    private Uri createDesinationFileUri() throws IOException {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
         String imageFileSuffix = ".jpg";
         String imageFileName = "AutoEdit_" + timeStamp;
@@ -172,20 +173,20 @@ public class MainActivity extends AppCompatActivity {
             }
 
             File tempFile = File.createTempFile(imageFileName, imageFileSuffix, imagesDirectory);
-            Uri uri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, tempFile);
+            Uri imageUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, tempFile);
 
-            setTempFile(tempFile);
-            setImageUri(uri);
-            return true;
+            setContentUri(imageUri);
+            return imageUri;
         }
 
-        return false;
+        return null;
     }
 
-    private void selectFromGallery() {
+    private void selectFromGallery() {//todo may need to remove content intent
         String permission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
         if(hasPermission(permission)) {
             Intent fileBrowserIntent = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*");//file browser
+
 
             if (fileBrowserIntent.resolveActivity(getPackageManager()) != null) {
                 startActivityForResult(Intent.createChooser(fileBrowserIntent, "Select Image From"), MEDIA_REQUEST_CODE);
@@ -212,7 +213,7 @@ public class MainActivity extends AppCompatActivity {
             Uri imageUri = intent.getData();
 
             if(imageUri != null) {
-                setImageUri(imageUri);
+                setContentUri(imageUri);
                 startActivity(editImageActivity);
 
             } else {

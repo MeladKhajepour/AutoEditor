@@ -19,63 +19,64 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class GetAndAddMasks {
-    private static final int TF_OD_API_INPUT_SIZE = 224;
-    private static final String TF_OD_API_MODEL_FILE =
-            "frozen_inference_graph.pb";
+    private static final int TF_OD_API_INPUT_SIZE = 224; //todo- Q: what does the size do?
+    private static final String TF_OD_API_MODEL_FILE = "frozen_inference_graph.pb";
     private static final String TF_OD_API_LABELS_FILE = "coco_labels_list.txt";
-    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.6f;
+    private static final float MINIMUM_CONFIDENCE_TF_OD_API = 0.9f;
 
     //To get all identified object's mask
-    public  List<Classifier.Recognition> getTFResults(Context context, Bitmap bitmapForTF){
+    public  List<Classifier.Entity> getImgEntities(Context context, Bitmap img){
         Classifier detector = initializeDetector(context);
+        Bitmap resizedImg = null;
 
-        Bitmap scaledBitmap = null;
-        if (bitmapForTF != null) {
-            scaledBitmap = cloneBitmap(bitmapForTF);
+        if (img != null) {
+            resizedImg = imgResizer(cloneBitmap(img), TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
+        } else {
+            //todo something if bitmap is null
         }
-        if (bitmapForTF != null) {
-            bitmapForTF = bitmapResizer(bitmapForTF,TF_OD_API_INPUT_SIZE, TF_OD_API_INPUT_SIZE);
-        }
-        List<Classifier.Recognition> tfResults = detectWithTensorFlow(detector, bitmapForTF);
-        return applyDetectedObjectToImage(tfResults, scaledBitmap);
+
+        List<Classifier.Entity> entities = detector.recognizeEntities(resizedImg);
+
+        return mapEntityLocationsToOriginalImg(entities, img);
     }
 
-    public ArrayList<Bitmap> getMask(List<Classifier.Recognition> results,Bitmap scaledBitmap){
-        ArrayList<Bitmap> masks = new ArrayList<>();
-        for (final Classifier.Recognition result : results) {
-            RectF location = result.getLocation();
+    public ArrayList<Bitmap> getMasks(List<Classifier.Entity> entities, Bitmap resizedImg){
+        ArrayList<Bitmap> entityMask = new ArrayList<>();
+
+        for (final Classifier.Entity entity : entities) {
+            RectF location = entity.getLocation();
             Rect locationRect = new Rect();
             location.round(locationRect);
-            Bitmap croppedBitmap = Bitmap.createBitmap(scaledBitmap, locationRect.left,
+            Bitmap croppedBitmap = Bitmap.createBitmap(resizedImg, locationRect.left,
                     locationRect.top,
                     locationRect.right - locationRect.left ,
                     locationRect.bottom - locationRect.top);
             /*The next line fills the bitmap with color black. I used it to test that edited bitmap was getting added to final bitmap*/
-           // croppedBitmap.eraseColor(Color.BLACK);
-            masks.add(croppedBitmap);
+            //croppedBitmap.eraseColor(Color.BLACK);
+            entityMask.add(croppedBitmap);
         }
-        return masks;
+        return entityMask;
     }
 
-    public ArrayList<String> getObjects(List<Classifier.Recognition> results){
+    public ArrayList<String> getObjects(List<Classifier.Entity> results){
         ArrayList<String> listOfIdentifiedObjects = new ArrayList<>();
-        for (final Classifier.Recognition result : results) {
+        for (final Classifier.Entity result : results) {
             String identifiedObjects = result.getTitle();
             listOfIdentifiedObjects.add(identifiedObjects);
         }
         return listOfIdentifiedObjects;
     }
 
-    public Bitmap addBitmapBackToOriginal(List<Classifier.Recognition> results, ArrayList<Bitmap> editedMasks, Bitmap scaledBitmap){
+    public Bitmap addBitmapBackToOriginal(List<Classifier.Entity> entities, ArrayList<Bitmap> editedMasks, Bitmap scaledImg){
         int i = 0;
-        Bitmap editedBitmap = cloneBitmap(scaledBitmap);
-        for (final Classifier.Recognition result : results) {
+        Bitmap editedBitmap = cloneBitmap(scaledImg);
+        for (final Classifier.Entity entity : entities) {
             Bitmap editedMask = editedMasks.get(i);
-            RectF location = result.getLocation();
+            RectF location = entity.getLocation();
             Rect locationRect = new Rect();
             location.round(locationRect);
             final Canvas canvas = new Canvas(editedBitmap);
-            canvas.drawBitmap(editedMask,null,locationRect,null);
+            canvas.drawBitmap(editedMask,null, locationRect,null);
             i++;
 
         }
@@ -87,7 +88,8 @@ public class GetAndAddMasks {
         try {
             detector = TensorFlowObjectDetectionAPIModel.create(
                     ctx.getAssets(), TF_OD_API_MODEL_FILE, TF_OD_API_LABELS_FILE, TF_OD_API_INPUT_SIZE);
-        } catch (final IOException e) {
+        } catch (IOException e) {
+            e.printStackTrace();
             Toast toast =
                     Toast.makeText(
                             ctx, "Classifier could not be initialized", Toast.LENGTH_SHORT);
@@ -96,52 +98,47 @@ public class GetAndAddMasks {
         return detector;
     }
 
-    private List<Classifier.Recognition> detectWithTensorFlow(Classifier detector, Bitmap croppedBitmap){
-        return detector.recognizeImage(croppedBitmap);
-    }
-
-    private List<Classifier.Recognition> applyDetectedObjectToImage(List<Classifier.Recognition> results, Bitmap scaledBitmap){
-        List<Classifier.Recognition> mappedRecognitions = new LinkedList<>();
+    private List<Classifier.Entity> mapEntityLocationsToOriginalImg(List<Classifier.Entity> entities, Bitmap resizedBitmap){
+        List<Classifier.Entity> mappedEntities = new LinkedList<>();
         Matrix cropToFrameTransform = new Matrix();
 
-        mappedRecognitions.clear();
-        for (final Classifier.Recognition result : results) {
-            RectF location = result.getLocation();
-            if (location != null && result.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
-                location.left /=  TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getWidth();
-                location.right /= TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getWidth();
-                location.top /= TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getHeight();
-                location.bottom /= TF_OD_API_INPUT_SIZE/ (float) scaledBitmap.getHeight();
+        for (Classifier.Entity entity : entities) {
+            RectF location = entity.getLocation();
+            if (location != null && entity.getConfidence() >= MINIMUM_CONFIDENCE_TF_OD_API) {
+                location.left /=  TF_OD_API_INPUT_SIZE/ (float) resizedBitmap.getWidth();
+                location.right /= TF_OD_API_INPUT_SIZE/ (float) resizedBitmap.getWidth();
+                location.top /= TF_OD_API_INPUT_SIZE/ (float) resizedBitmap.getHeight();
+                location.bottom /= TF_OD_API_INPUT_SIZE/ (float) resizedBitmap.getHeight();
+
                 cropToFrameTransform.mapRect(location);
-                result.setLocation(location);
-                mappedRecognitions.add(result);
+                entity.setLocation(location);
+                mappedEntities.add(entity);
             }
         }
-        return mappedRecognitions;
+        return mappedEntities;
     }
 
     private Bitmap cloneBitmap(Bitmap bitmap){
         return bitmap.copy(bitmap.getConfig(), true);
     }
 
-    private Bitmap bitmapResizer(Bitmap bitmap,int newWidth,int newHeight) {
-        Bitmap scaledBitmap = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888);
+    private Bitmap imgResizer(Bitmap originalImg, int newWidth, int newHeight) {// todo see if the pic has to be square otherwise keep ratios
+        Bitmap scaledImg = Bitmap.createBitmap(newWidth, newHeight, Bitmap.Config.ARGB_8888);
         float scaleX;
         float scaleY;
 
-        scaleX = newWidth / (float) bitmap.getWidth();
-        scaleY = newHeight / (float) bitmap.getHeight();
+        scaleX = newWidth / (float) originalImg.getWidth();
+        scaleY = newHeight / (float) originalImg.getHeight();
         float pivotX = 0;
         float pivotY = 0;
 
         Matrix scaleMatrix = new Matrix();
         scaleMatrix.setScale(scaleX, scaleY, pivotX, pivotY);
 
-        Canvas canvas = new Canvas(scaledBitmap);
+        Canvas canvas = new Canvas(scaledImg);
         canvas.setMatrix(scaleMatrix);
-        canvas.drawBitmap(bitmap, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
+        canvas.drawBitmap(originalImg, 0, 0, new Paint(Paint.FILTER_BITMAP_FLAG));
 
-        return scaledBitmap;
-
+        return scaledImg;
     }
 }

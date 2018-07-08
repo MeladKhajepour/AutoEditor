@@ -6,7 +6,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ColorMatrix;
@@ -16,7 +15,6 @@ import android.graphics.PorterDuff;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
-import android.provider.MediaStore;
 import android.renderscript.Allocation;
 import android.renderscript.Element;
 import android.renderscript.RenderScript;
@@ -28,26 +26,24 @@ import android.support.v4.content.ContextCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.view.View;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-
-import static com.example.android.autoeditor.filters.Editor.getImageUri;
 
 public class Utils {
 
     private static final String PREFERENCES_FILE = "PREFS";
-    private static final int CONTRAST_FILTER = 0;
-    private static final int EXPOSURE_FILTER = 1;
-    private static final int SATURATION_FILTER = 2;
-    private static final int UNSHARP_MASK_SHARPEN = 3;
-    private static final int CONVOLUTION_SHARPEN = 4;
+    public static final int CONTRAST_FILTER = 0;
+    public static final int EXPOSURE_FILTER = 1;
+    public static final int SATURATION_FILTER = 2;
+    public static final int UNSHARP_MASK_SHARPEN = 3;
+    public static final int CONVOLUTION_SHARPEN = 4;
 
     private static int imageScaleX;
     private static int imageScaleY;
 
     private static ColorMatrix contrastCm = new ColorMatrix();
     private static ColorMatrix exposureCm = new ColorMatrix();
+    private static float saturation = 1;
 
     public static void requestMissingPermissions(Activity ctx) {
         List<String> permissionList = new ArrayList<>();
@@ -113,22 +109,15 @@ public class Utils {
         imageScaleY = view.getHeight();
     }
 
-    public static int getTargetWidth() {
+    public static int getPreviewWidth() {
         return imageScaleX;
     }
 
-    public static int getTargetHeight() {
+    public static int getPreviewHeight() {
         return imageScaleY;
     }
 
-    public static Bitmap setFilter(float value, int filter, Context ctx){
-
-        Bitmap bmp = null;
-        try {
-            bmp = MediaStore.Images.Media.getBitmap(ctx.getContentResolver(), getImageUri());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public static Bitmap applyFilter(Context ctx, Bitmap bmp, float value, int filter){
 
         ColorMatrix cm = new ColorMatrix();
 
@@ -165,7 +154,7 @@ public class Utils {
                 value = value > 0 ?
                         (float) Math.pow(1.01, value) : (value + 100)/100;
 
-                exposureCm.setSaturation(value);
+                saturation = value;
                 break;
 
             case UNSHARP_MASK_SHARPEN:
@@ -182,6 +171,7 @@ public class Utils {
         Canvas canvas = new Canvas(ret);
 
         cm.setConcat(contrastCm, exposureCm);
+        cm.setSaturation(saturation);
 
         Paint paint = new Paint();
         paint.setColorFilter(new ColorMatrixColorFilter(cm));
