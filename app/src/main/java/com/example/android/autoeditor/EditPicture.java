@@ -16,11 +16,8 @@ import android.widget.Toast;
 import com.example.android.autoeditor.filters.Editor;
 import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
 import com.example.android.autoeditor.tensorFlow.Classifier;
-import com.example.android.autoeditor.utils.Cluster;
-import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,14 +30,11 @@ import java.util.List;
 *   Saving the final image
 * ******should only have to worry about initializing the image, setting it and updating it. no logic
  */
-public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAdjustment {
+public class EditPicture extends AppCompatActivity {
     Button saveButton;
     ImageView mImageView;
-    Cluster exposure, contrast, sharpness, saturation;
     Bitmap editedBitmap;
-    Bitmap originalImg;
     Bitmap previewImg;
-    Context ctx;
     private Editor imageEditor;
 
     @Override
@@ -48,22 +42,16 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
 
-        ctx = EditPicture.this;
-
         try {
-            imageEditor = new Editor(ctx);
-            previewImg = imageEditor.getPreviewBitmap();
-        } catch (IOException e) {
+            imageEditor = new Editor(this);
+        } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "Something went wrong with reading your image ...", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Something went wrong with opening your image ...", Toast.LENGTH_LONG).show();
             finish();
         }
 
         initUi();
-        initClusters();
     }
-
-
 
     private void initUi() {
 
@@ -80,21 +68,8 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         updatePreview();
     }
 
-    private void initClusters() {
-        exposure = new Cluster(this, R.id.exposure_seekbar);
-        contrast = new Cluster(this, R.id.contrast_seekbar);
-        sharpness = new Cluster(this, R.id.sharpen_seekbar);
-        saturation = new Cluster(this, R.id.saturation_seekbar);
-    }
-
-    @Override
     public void updatePreview() {
         mImageView.setImageBitmap(imageEditor.getPreviewBitmap());
-    }
-
-    @Override
-    public void applyFilter(int strength, int filterType) {
-        previewImg = Utils.applyFilter(this, imageEditor.getPreviewBitmap(), strength, filterType);
     }
 
     private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
