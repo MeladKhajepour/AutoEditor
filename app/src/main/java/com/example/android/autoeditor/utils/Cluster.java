@@ -28,11 +28,12 @@ public class Cluster {
     private final SeekBar seekBar;
     private final TextView textView;
     private final String prefix;
-    private final ActiveFilter activeFilter = new ActiveFilter();
+    private final ActiveFilter activeFilter;
 
     public Cluster(ClusterParams params) {
         editor = params.editor;
         filterType = params.filterType;
+        activeFilter = new ActiveFilter();
 
         EditPicture activity = editor.getActivity();
         seekBar = activity.findViewById(params.seekBarId);
@@ -67,12 +68,6 @@ public class Cluster {
 
             @Override
             public void onStopTrackingTouch(final SeekBar seekBar) {
-                editor.setActiveFilter(null);
-
-                if(filterType == CONVOLUTION_SHARPEN) {
-                    editor.destroyRs();
-                }
-
                 if(inDoubleTapWindow && Math.abs(initialProgress - seekBar.getProgress()) <= 25) {
                     reset();
                     return;
@@ -87,6 +82,12 @@ public class Cluster {
                         initialProgress = seekBar.getProgress();
                     }
                 }, 250);
+
+                if(filterType == CONVOLUTION_SHARPEN) {
+                    editor.destroyRs();
+                }
+
+                editor.setActiveFilter(null);
             }
 
             private void reset() {
@@ -120,11 +121,13 @@ public class Cluster {
     }
 
     public class ActiveFilter {
-        public final Cluster cluster = _this;
-        public final int filterType = _this.filterType;
+        public final Cluster cluster;
+        public final int filterType;
         public float strength;
 
         private ActiveFilter() {
+            cluster = _this;
+            filterType = _this.filterType;
         }
     }
 }

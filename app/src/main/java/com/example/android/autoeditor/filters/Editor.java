@@ -8,7 +8,6 @@ import com.example.android.autoeditor.EditPicture;
 import com.example.android.autoeditor.R;
 import com.example.android.autoeditor.utils.Cluster;
 import com.example.android.autoeditor.utils.ClusterParams;
-import com.example.android.autoeditor.utils.Filters;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,7 +32,7 @@ public class Editor {
         this.activity = activity;
         createPreviewBitmap();
         initClusters();
-        Filters.setBitmap(mutablePreviewImg);
+        Filters.init(mutablePreviewImg);
     }
 
     private void createPreviewBitmap() throws IOException, NullPointerException {
@@ -99,7 +98,7 @@ public class Editor {
     }
 
     public void applyFilter() {
-        Filters.applyFilter(activeFilter);
+        mutablePreviewImg = Filters.applyFilter(activeFilter);
     }
 
     private void createOriginalImg() {

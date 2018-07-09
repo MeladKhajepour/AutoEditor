@@ -9,6 +9,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -18,9 +19,12 @@ import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
 import com.example.android.autoeditor.tensorFlow.Classifier;
 
 import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /*
 *
@@ -57,13 +61,13 @@ public class EditPicture extends AppCompatActivity {
 
         mImageView = findViewById(R.id.selected_picture_image_view);
         saveButton = findViewById(R.id.save_button);
-//        saveButton.setOnClickListener(new View.OnClickListener() {
-//
-//            @Override
-//            public void onClick(View v) {
-//                saveImage();
-//            }
-//        });
+        saveButton.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View v) {
+                saveImage();
+            }
+        });
 
         updatePreview();
     }
@@ -143,7 +147,7 @@ public class EditPicture extends AppCompatActivity {
         startActivity(i); //goes back to main activity
     }
 
-//    private void saveImage(){     // this only works for the file from camera not content uri
+    private void saveImage(){     // this only works for the file from camera not content uri
 //        File imageToSaveFile = getTempFile();
 //
 //        FileOutputStream out = null;
@@ -164,7 +168,7 @@ public class EditPicture extends AppCompatActivity {
 //        }
 //
 //        addToGallery(imageToSaveFile);
-//    }
+    }
 
     void addToGallery(File imageFile) {
         Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
