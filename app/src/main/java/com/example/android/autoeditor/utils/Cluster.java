@@ -6,85 +6,42 @@ import android.widget.SeekBar;
 import android.widget.TextView;
 
 import com.example.android.autoeditor.EditPicture;
-import com.example.android.autoeditor.R;
+import com.example.android.autoeditor.filters.Editor;
 
 import java.util.Locale;
 
-import static com.example.android.autoeditor.utils.Utils.CONTRAST_FILTER;
 import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
-import static com.example.android.autoeditor.utils.Utils.EXPOSURE_FILTER;
-import static com.example.android.autoeditor.utils.Utils.SATURATION_FILTER;
-import static com.example.android.autoeditor.utils.Utils.UNSHARP_MASK_SHARPEN;
 
 /*
 *
 * This class is responsible for containing and handling the UI elements for
-* filtering the image in EditPicture activity. It is responsible for:
+* filtering the image in EditPicture editor. It is responsible for:
 *   Initializing the seekbar
 *   Setting the label and strength on seekbar change
 *   Setting the filter type
 *
  */
 public class Cluster {
-    private final EditPicture activity;
+    private final Cluster _this = this;
+    private final Editor editor;
+    private final int filterType;
     private final SeekBar seekBar;
-    private TextView textView;
-    private String prefix;
-    private int filterType;
-    private int strength = 0;
+    private final TextView textView;
+    private final String prefix;
+    private final ActiveFilter activeFilter;
 
-    public Cluster(EditPicture activity, int seekBarId) {
-        this.activity = activity;
-        seekBar = activity.findViewById(seekBarId);
+    public Cluster(ClusterParams params) {
+        editor = params.editor;
+        filterType = params.filterType;
+        activeFilter = new ActiveFilter();
 
-        switch (seekBarId) {
-            case R.id.exposure_seekbar:
-                textView = activity.findViewById(R.id.exposure_label);
-                prefix = activity.getResources().getString(R.string.exposure);
-                filterType = EXPOSURE_FILTER;
-                break;
-
-            case R.id.contrast_seekbar:
-                textView = activity.findViewById(R.id.contrast_label);
-                prefix = activity.getResources().getString(R.string.contrast);
-                filterType = CONTRAST_FILTER;
-                break;
-
-            case R.id.sharpen_seekbar:
-                textView = activity.findViewById(R.id.sharpen_label);
-                prefix = activity.getResources().getString(R.string.sharpness);
-                filterType = UNSHARP_MASK_SHARPEN;
-                break;
-
-            case R.id.saturation_seekbar:
-                textView = activity.findViewById(R.id.saturation_label);
-                prefix = activity.getResources().getString(R.string.saturation);
-                filterType = SATURATION_FILTER;
-                break;
-        }
+        EditPicture activity = editor.getActivity();
+        seekBar = activity.findViewById(params.seekBarId);
+        textView = activity.findViewById(params.textViewId);
+        prefix = activity.getResources().getString(params.prefixId);
 
         initSeekbar();
-        updateLabel(prefix, strength);
-    }
-
-    public SeekBar getSeekBar() {
-        return seekBar;
-    }
-
-    public TextView getTextView() {
-        return textView;
-    }
-
-    public int getStrength() {
-        return strength;
-    }
-
-    private void updatePreview() {
-        activity.updatePreview();
-    }
-
-    private void applyFilter(int strength, int filterType) {
-        activity.applyFilter(strength, filterType);
+        updateLabel(prefix, activeFilter.strength);
     }
 
     private void initSeekbar() {
@@ -97,20 +54,20 @@ public class Cluster {
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
+                editor.setActiveFilter(activeFilter);
             }
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
-                strength = progress - 100;
+                activeFilter.strength = progress - 100;
 
-                applyFilter(strength, filterType);
-                updateLabel(prefix, strength);
+                editor.applyFilter();
+                updateLabel(prefix, activeFilter.strength);
                 updatePreview();
             }
 
             @Override
             public void onStopTrackingTouch(final SeekBar seekBar) {
-
                 if(inDoubleTapWindow && Math.abs(initialProgress - seekBar.getProgress()) <= 25) {
                     reset();
                     return;
@@ -125,17 +82,31 @@ public class Cluster {
                         initialProgress = seekBar.getProgress();
                     }
                 }, 250);
+
+                if(filterType == CONVOLUTION_SHARPEN) {
+                    editor.destroyRs();
+                }
+
+                editor.setActiveFilter(null);
             }
 
             private void reset() {
                 initialProgress = 0;
                 inDoubleTapWindow = false;
-                strength = 0;
+                activeFilter.strength = 0;
 
                 resetCluster();
-                updateLabel(prefix, strength);
+                updateLabel(prefix, activeFilter.strength);
             }
         });
+    }
+
+    private void updateLabel(String prefix, float strength) {
+        textView.setText(String.format(Locale.getDefault(), prefix + " " + "%d", (int) strength));
+    }
+
+    private void updatePreview() {
+        editor.updatePreview();
     }
 
     private void resetCluster() {
@@ -149,12 +120,14 @@ public class Cluster {
         updatePreview();
     }
 
-    private void updateLabel(String prefix, int strength) {
-        textView.setText(String.format(Locale.getDefault(), prefix + " " + "%d", strength));
-    }
+    public class ActiveFilter {
+        public final Cluster cluster;
+        public final int filterType;
+        public float strength;
 
-    public interface OnFilterAdjustment {
-        void updatePreview();
-        void applyFilter(int strength, int filterType);
+        private ActiveFilter() {
+            cluster = _this;
+            filterType = _this.filterType;
+        }
     }
 }

@@ -9,6 +9,7 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
+import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.Toast;
@@ -16,14 +17,14 @@ import android.widget.Toast;
 import com.example.android.autoeditor.filters.Editor;
 import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
 import com.example.android.autoeditor.tensorFlow.Classifier;
-import com.example.android.autoeditor.utils.Cluster;
-import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /*
 *
@@ -33,14 +34,11 @@ import java.util.List;
 *   Saving the final image
 * ******should only have to worry about initializing the image, setting it and updating it. no logic
  */
-public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAdjustment {
+public class EditPicture extends AppCompatActivity {
     Button saveButton;
     ImageView mImageView;
-    Cluster exposure, contrast, sharpness, saturation;
     Bitmap editedBitmap;
-    Bitmap originalImg;
     Bitmap previewImg;
-    Context ctx;
     private Editor imageEditor;
 
     @Override
@@ -48,53 +46,34 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_picture);
 
-        ctx = EditPicture.this;
-
         try {
-            imageEditor = new Editor(ctx);
-            previewImg = imageEditor.getPreviewBitmap();
-        } catch (IOException e) {
+            imageEditor = new Editor(this);
+        } catch (Exception e) {
             e.printStackTrace();
-            Toast.makeText(this, "Something went wrong with reading your image ...", Toast.LENGTH_LONG).show();
+            Toast.makeText(this, "Something went wrong with opening your image ...", Toast.LENGTH_LONG).show();
             finish();
         }
 
         initUi();
-        initClusters();
     }
-
-
 
     private void initUi() {
 
         mImageView = findViewById(R.id.selected_picture_image_view);
         saveButton = findViewById(R.id.save_button);
-//        saveButton.setOnClickListener(new View.OnClickListener() {
-//
-//            @Override
-//            public void onClick(View v) {
-//                saveImage();
-//            }
-//        });
+        saveButton.setOnClickListener(new View.OnClickListener() {
+
+            @Override
+            public void onClick(View v) {
+                saveImage();
+            }
+        });
 
         updatePreview();
     }
 
-    private void initClusters() {
-        exposure = new Cluster(this, R.id.exposure_seekbar);
-        contrast = new Cluster(this, R.id.contrast_seekbar);
-        sharpness = new Cluster(this, R.id.sharpen_seekbar);
-        saturation = new Cluster(this, R.id.saturation_seekbar);
-    }
-
-    @Override
     public void updatePreview() {
         mImageView.setImageBitmap(imageEditor.getPreviewBitmap());
-    }
-
-    @Override
-    public void applyFilter(int strength, int filterType) {
-        previewImg = Utils.applyFilter(this, imageEditor.getPreviewBitmap(), strength, filterType);
     }
 
     private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
@@ -168,7 +147,7 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
         startActivity(i); //goes back to main activity
     }
 
-//    private void saveImage(){     // this only works for the file from camera not content uri
+    private void saveImage(){     // this only works for the file from camera not content uri
 //        File imageToSaveFile = getTempFile();
 //
 //        FileOutputStream out = null;
@@ -189,7 +168,7 @@ public class EditPicture extends AppCompatActivity implements Cluster.OnFilterAd
 //        }
 //
 //        addToGallery(imageToSaveFile);
-//    }
+    }
 
     void addToGallery(File imageFile) {
         Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
