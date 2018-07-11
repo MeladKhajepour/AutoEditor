@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Environment;
+import android.support.design.widget.Snackbar;
 import android.support.v4.content.FileProvider;
 
 import com.example.android.autoeditor.BuildConfig;
@@ -37,6 +38,7 @@ public class Editor {
     private List<Cluster> clusters = new ArrayList<>();
     private Cluster.ActiveFilter activeFilter;
     private Bitmap originalImg, mutablePreviewImg;//Original picture should never be laoded in memory till save
+    private File savedImgFile;
 
     public Editor(EditPicture activity) throws IOException {
         this.activity = activity;
@@ -79,16 +81,18 @@ public class Editor {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
         String imageFileName = "AE_" + timeStamp + ".jpeg";
 
-        File outFile = new File(pictureDir, imageFileName);
-        FileOutputStream outStream = new FileOutputStream(outFile);
+        savedImgFile = new File(pictureDir, imageFileName);
+        FileOutputStream outStream = new FileOutputStream(savedImgFile);
         originalImg.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
 
         outStream.flush();
         outStream.close();
 
         Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        intent.setData(Uri.fromFile(outFile));
+        intent.setData(Uri.fromFile(savedImgFile));
         activity.sendBroadcast(intent);
+
+        activity.onSave(savedImgFile);
     }
 
     private void initClusters() {
@@ -140,6 +144,10 @@ public class Editor {
 
     private void createOriginalImg() {
 
+    }
+
+    public interface OnSaveListener {
+        void onSave(File savedImg);
     }
 
     public static void setContentUri(Uri uri) {

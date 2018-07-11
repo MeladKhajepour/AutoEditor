@@ -7,6 +7,7 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.View;
@@ -34,7 +35,7 @@ import java.util.Objects;
 *   Saving the final image
 * ******should only have to worry about initializing the image, setting it and updating it. no logic
  */
-public class EditPicture extends AppCompatActivity {
+public class EditPicture extends AppCompatActivity implements Editor.OnSaveListener {
     private Editor imageEditor;
     private ImageView mImageView;
 //    private Bitmap editedBitmap;
@@ -79,6 +80,16 @@ public class EditPicture extends AppCompatActivity {
 
     public void updatePreview() { //todo make background task
         mImageView.setImageBitmap(imageEditor.getPreviewBitmap());
+    }
+
+    @Override
+    public void onSave(File savedImg) {
+        Snackbar.make(mImageView, "Image saved", Snackbar.LENGTH_LONG).setAction("View", new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                //todo action to view
+            }
+        }).show();
     }
 
 //    private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
