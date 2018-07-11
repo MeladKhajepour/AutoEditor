@@ -35,11 +35,10 @@ import java.util.Objects;
 * ******should only have to worry about initializing the image, setting it and updating it. no logic
  */
 public class EditPicture extends AppCompatActivity {
-    Button saveButton;
-    ImageView mImageView;
-    Bitmap editedBitmap;
-    Bitmap previewImg;
     private Editor imageEditor;
+    private ImageView mImageView;
+//    private Bitmap editedBitmap;
+//    private Bitmap previewImg;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,77 +59,83 @@ public class EditPicture extends AppCompatActivity {
     private void initUi() {
 
         mImageView = findViewById(R.id.selected_picture_image_view);
-        saveButton = findViewById(R.id.save_button);
+
+        Button saveButton = findViewById(R.id.save_button);
         saveButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
             public void onClick(View v) {
-                saveImage();
+                try {
+                    imageEditor.saveImage();
+                } catch (IOException e) {
+                    Toast.makeText(getBaseContext(), "Something went wrong with saving your image ...", Toast.LENGTH_LONG).show();
+                    e.printStackTrace();
+                }
             }
         });
 
         updatePreview();
     }
 
-    public void updatePreview() {
+    public void updatePreview() { //todo make background task
         mImageView.setImageBitmap(imageEditor.getPreviewBitmap());
     }
 
-    private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
-        ProgressDialog pd;
-
-        //need to do this as Async task was not being static was causing memory leak
-        private WeakReference<EditPicture> activityReference;
-
-        // only retain a weak reference to the activity
-        LoadDataForActivity(Context context) {
-            activityReference = new WeakReference<>((EditPicture) context);
-        }
-
-        @Override
-        protected void onPreExecute() {
-            EditPicture _this = activityReference.get();
-
-            _this.previewImg = _this.imageEditor.getPreviewBitmap(); //todo do stuff with bitmaputils class
-            //todo also maybe null checking on image
-            pd = new ProgressDialog(_this);
-            pd.setTitle("Can't rush perfection!");
-            pd.setMessage("Identifying your image...");
-            pd.setCancelable(false);
-            pd.show();
-        }
-        @Override
-        protected Void doInBackground(Void... params) {
-            EditPicture _this = activityReference.get();
-            //How to use GetAndAddMasks class
-            //Initialize the class
-            GetAndAddMasks process = new GetAndAddMasks();
-            //Get the tensorflow results
-            List<Classifier.Entity> entities = process.getImgEntities(_this, _this.previewImg);
-            //get the mask in a list of bitmaps
-            ArrayList<Bitmap> masks = process.getMasks(entities, _this.previewImg);
-            /*Useful if you want to tell user the object identified*/
-            // ArrayList<String> identifiedObjects = process.getObjects(entities);
-            //add all the edited bitmaps back
-            _this.editedBitmap = process.addBitmapBackToOriginal(entities, masks, _this.previewImg);
-            return null;
-        }
-
-        @SuppressWarnings("InfiniteRecursion")
-        @Override
-        protected void onProgressUpdate(Void... values) {
-            onProgressUpdate(values);
-        }
-
-
-        @Override
-        protected void onPostExecute(Void result) {
-            EditPicture activity = activityReference.get();
-            activity.mImageView.setImageBitmap(activity.editedBitmap);
-            pd.dismiss();
-        }
-
-    }
+//    private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
+//        ProgressDialog pd;
+//
+//        //need to do this as Async task was not being static was causing memory leak
+//        private WeakReference<EditPicture> activityReference;
+//
+//        // only retain a weak reference to the activity
+//        LoadDataForActivity(Context context) {
+//            activityReference = new WeakReference<>((EditPicture) context);
+//        }
+//
+//        @Override
+//        protected void onPreExecute() {
+//            EditPicture _this = activityReference.get();
+//
+//            _this.previewImg = _this.imageEditor.getPreviewBitmap(); //todo do stuff with bitmaputils class
+//            //todo also maybe null checking on image
+//            pd = new ProgressDialog(_this);
+//            pd.setTitle("Can't rush perfection!");
+//            pd.setMessage("Identifying your image...");
+//            pd.setCancelable(false);
+//            pd.show();
+//        }
+//        @Override
+//        protected Void doInBackground(Void... params) {
+//            EditPicture _this = activityReference.get();
+//            //How to use GetAndAddMasks class
+//            //Initialize the class
+//            GetAndAddMasks process = new GetAndAddMasks();
+//            //Get the tensorflow results
+//            List<Classifier.Entity> entities = process.getImgEntities(_this, _this.previewImg);
+//            //get the mask in a list of bitmaps
+//            ArrayList<Bitmap> masks = process.getMasks(entities, _this.previewImg);
+//            /*Useful if you want to tell user the object identified*/
+//            // ArrayList<String> identifiedObjects = process.getObjects(entities);
+//            //add all the edited bitmaps back
+//            _this.editedBitmap = process.addBitmapBackToOriginal(entities, masks, _this.previewImg);
+//            return null;
+//        }
+//
+//        @SuppressWarnings("InfiniteRecursion")
+//        @Override
+//        protected void onProgressUpdate(Void... values) {
+//            onProgressUpdate(values);
+//        }
+//
+//
+//        @Override
+//        protected void onPostExecute(Void result) {
+//            EditPicture activity = activityReference.get();
+//            activity.mImageView.setImageBitmap(activity.editedBitmap);
+//            pd.dismiss();
+//        }
+//
+//    }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -147,7 +152,7 @@ public class EditPicture extends AppCompatActivity {
         startActivity(i); //goes back to main activity
     }
 
-    private void saveImage(){     // this only works for the file from camera not content uri
+//    private void saveImage(){     // this only works for the file from camera not content uri
 //        File imageToSaveFile = getTempFile();
 //
 //        FileOutputStream out = null;
@@ -168,11 +173,11 @@ public class EditPicture extends AppCompatActivity {
 //        }
 //
 //        addToGallery(imageToSaveFile);
-    }
-
-    void addToGallery(File imageFile) {
-        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-        mediaScanIntent.setData(Uri.fromFile(imageFile));//todo cant it just be imageUri?
-        this.sendBroadcast(mediaScanIntent);
-    }
+//    }
+//
+//    void addToGallery(File imageFile) {
+//        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+//        mediaScanIntent.setData(Uri.fromFile(imageFile));//todo cant it just be imageUri?
+//        this.sendBroadcast(mediaScanIntent);
+//    }
 }

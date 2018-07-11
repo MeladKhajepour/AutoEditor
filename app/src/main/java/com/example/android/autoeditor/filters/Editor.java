@@ -1,19 +1,29 @@
 package com.example.android.autoeditor.filters;
 
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
+import android.os.Environment;
+import android.support.v4.content.FileProvider;
 
+import com.example.android.autoeditor.BuildConfig;
 import com.example.android.autoeditor.EditPicture;
 import com.example.android.autoeditor.R;
 import com.example.android.autoeditor.utils.Cluster;
 import com.example.android.autoeditor.utils.ClusterParams;
 
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 
 import static com.example.android.autoeditor.utils.BitmapUtils.calculateInSampleSize;
 import static com.example.android.autoeditor.utils.BitmapUtils.rotateImageIfRequired;
@@ -52,6 +62,33 @@ public class Editor {
         is.close();
 
         mutablePreviewImg = rotateImageIfRequired(activity, mutablePreviewImg, contentUri);
+    }
+
+    public void saveImage() throws IOException, NullPointerException {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inMutable = true;
+        InputStream is = activity.getContentResolver().openInputStream(contentUri);
+        originalImg = BitmapFactory.decodeStream(is, null, options);
+        originalImg = rotateImageIfRequired(activity, originalImg, contentUri);
+        is.close();
+
+        File pictureDir = Environment.getExternalStorageDirectory();
+        pictureDir = new File(pictureDir.getAbsolutePath() + File.separator + "AutoEdits");
+        pictureDir.mkdirs();
+
+        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
+        String imageFileName = "AE_" + timeStamp + ".jpeg";
+
+        File outFile = new File(pictureDir, imageFileName);
+        FileOutputStream outStream = new FileOutputStream(outFile);
+        originalImg.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
+
+        outStream.flush();
+        outStream.close();
+
+        Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
+        intent.setData(Uri.fromFile(outFile));
+        activity.sendBroadcast(intent);
     }
 
     private void initClusters() {

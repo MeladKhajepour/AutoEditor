@@ -62,8 +62,8 @@ public class Cluster {
                 activeFilter.strength = progress - 100;
 
                 editor.applyFilter();
+                editor.updatePreview();
                 updateLabel(prefix, activeFilter.strength);
-                updatePreview();
             }
 
             @Override
@@ -105,10 +105,6 @@ public class Cluster {
         textView.setText(String.format(Locale.getDefault(), prefix + " " + "%d", (int) strength));
     }
 
-    private void updatePreview() {
-        editor.updatePreview();
-    }
-
     private void resetCluster() {
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
@@ -117,7 +113,7 @@ public class Cluster {
             seekBar.setProgress(100);
         }
 
-        updatePreview();
+        editor.updatePreview();
     }
 
     public class ActiveFilter {

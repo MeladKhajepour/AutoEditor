@@ -45,34 +45,6 @@ public class Filters {
         initMatrices();
     }
 
-    private static void initMatrices() {
-        brightnessStrength = contrastStrength = saturationStrength = new float[] {
-                1, 0, 0, 0, 0,
-                0, 1, 0, 0, 0,
-                0, 0, 1, 0, 0,
-                0, 0, 0, 1, 0
-        };
-    }
-
-    public static void initRs(EditPicture activity) {
-        rs = RenderScript.create(activity);
-        allocIn = Allocation.createFromBitmap(rs, originalImg);
-        allocOut = Allocation.createFromBitmap(rs, finalImg);
-
-        convolutionScript = ScriptIntrinsicConvolve3x3.create(rs, Element.U8_4(rs));
-        blurScript = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
-
-        convolutionScript.setInput(allocIn);
-        blurScript.setInput(allocIn);
-    }
-
-    public static void destroyRs() {
-        allocIn.destroy();
-        allocOut.destroy();
-        blurScript.destroy();
-        rs.destroy();
-    }
-
     public static Bitmap applyFilter(Cluster.ActiveFilter filter) {
 
         switch (filter.filterType) {
@@ -97,6 +69,44 @@ public class Filters {
         createFinalImg();
 
         return finalImg;
+    }
+
+    /*
+     * Called in onStartTrackingTouch in Cluster
+     */
+    public static void initRs(EditPicture activity) {
+        rs = RenderScript.create(activity);
+        allocIn = Allocation.createFromBitmap(rs, originalImg);
+        allocOut = Allocation.createFromBitmap(rs, finalImg);
+
+        convolutionScript = ScriptIntrinsicConvolve3x3.create(rs, Element.U8_4(rs));
+        blurScript = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
+
+        convolutionScript.setInput(allocIn);
+        blurScript.setInput(allocIn);
+    }
+
+    /*
+     * Called in onStopTrackingTouch in Cluster
+     */
+    public static void destroyRs() {
+        allocIn.destroy();
+        allocOut.destroy();
+        blurScript.destroy();
+        rs.destroy();
+    }
+
+    /*
+     * Called when save button pressed
+     */
+
+    private static void initMatrices() {
+        brightnessStrength = contrastStrength = saturationStrength = new float[] {
+                1, 0, 0, 0, 0,
+                0, 1, 0, 0, 0,
+                0, 0, 1, 0, 0,
+                0, 0, 0, 1, 0
+        };
     }
 
     private static void brightnessFilter(float strength) {

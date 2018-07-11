@@ -26,6 +26,7 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -159,23 +160,23 @@ public class MainActivity extends AppCompatActivity {
         ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
     }
 
-    private Uri createDesinationFileUri() throws IOException {
+    private Uri createDesinationFileUri() throws IOException {//has to fire every time to save pic
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
         String imageFileSuffix = ".jpg";
-        String imageFileName = "AutoEdit_" + timeStamp;
-        File imagesDirectory = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
+        String imageFileName = "AE_" + timeStamp;
+        File picturesDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
 
-        if(imagesDirectory != null) {
-            imagesDirectory = new File(imagesDirectory + "/AutoEdits");
+        if(picturesDir != null) {
+            File folder = new File(picturesDir.getAbsolutePath() +
+                    File.separator + "AutoEdits");
 
-            if(!imagesDirectory.isDirectory() && !imagesDirectory.exists()) {
-                imagesDirectory.mkdirs();
-            }
+            folder.mkdirs();
 
-            File tempFile = File.createTempFile(imageFileName, imageFileSuffix, imagesDirectory);
+            File tempFile = File.createTempFile(imageFileName, imageFileSuffix, folder);
+            //setTempFile(tempFile);
             Uri imageUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, tempFile);
 
-            setContentUri(imageUri);
+            setContentUri(imageUri);//remove and put in camera function
             return imageUri;
         }
 
