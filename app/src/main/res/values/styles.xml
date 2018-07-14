@@ -13,8 +13,13 @@
         <item name="windowNoTitle">true</item>
     </style>
 
-    <style name="Save.Button" parent="Widget.AppCompat.Button.Colored">
-        <item name="colorButtonNormal">@color/Red</item>
+    <style name="SaveButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="android:colorButtonNormal">@color/saveButton</item>
+        <item name="android:textColor">@color/White</item>
+    </style>
+
+    <style name="ViewButton" parent="Widget.AppCompat.Button.Colored">
+        <item name="android:colorButtonNormal">@color/viewButton</item>
         <item name="android:textColor">@color/White</item>
     </style>
 

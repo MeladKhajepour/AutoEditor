@@ -30,4 +30,10 @@
     <string name="contrast">Contrast:</string>
     <string name="sharpness">Sharpness:</string>
     <string name="saturation">Saturation:</string>
+    <string name="view">view</string>
+    <string name="saved">Saved!</string>
+    <string name="saving">Saving…</string>
+    <string name="error">Error</string>
+    <string name="overwrite">Overwrite</string>
+    <string name="copy">New copy</string>
 </resources>

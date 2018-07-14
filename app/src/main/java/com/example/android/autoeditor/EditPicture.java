@@ -1,31 +1,23 @@
 package com.example.android.autoeditor;
 
-import android.app.ProgressDialog;
-import android.content.Context;
 import android.content.Intent;
-import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Bundle;
-import android.support.design.widget.Snackbar;
+import android.os.Handler;
+import android.support.v4.content.FileProvider;
 import android.support.v7.app.AppCompatActivity;
 import android.view.Menu;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.example.android.autoeditor.filters.Editor;
-import com.example.android.autoeditor.imageManipulation.GetAndAddMasks;
-import com.example.android.autoeditor.tensorFlow.Classifier;
+import com.example.android.autoeditor.utils.Utils;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
 
 /*
 *
@@ -35,11 +27,16 @@ import java.util.Objects;
 *   Saving the final image
 * ******should only have to worry about initializing the image, setting it and updating it. no logic
  */
-public class EditPicture extends AppCompatActivity implements Editor.OnSaveListener {
+public class EditPicture extends AppCompatActivity implements Editor.OnSaveListener, Editor.OnEditListener {
+    private final int ANIMATION_DURATION = 200;
     private Editor imageEditor;
     private ImageView mImageView;
-//    private Bitmap editedBitmap;
-//    private Bitmap previewImg;
+    private TextView saveStatus;
+    private Button viewButton;
+    private Button saveButton;
+    private Button saveMode;
+    private File imgFile; // gets set in onSave
+    private boolean isSaved = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,8 +57,17 @@ public class EditPicture extends AppCompatActivity implements Editor.OnSaveListe
     private void initUi() {
 
         mImageView = findViewById(R.id.selected_picture_image_view);
+        saveStatus = findViewById(R.id.save_confirmation);
+        viewButton = findViewById(R.id.view_button);
+        viewButton.setOnClickListener(new View.OnClickListener() {
 
-        Button saveButton = findViewById(R.id.save_button);
+            @Override
+            public void onClick(View v) {
+                viewImage();
+            }
+        });
+
+        saveButton = findViewById(R.id.save_button);
         saveButton.setOnClickListener(new View.OnClickListener() {
 
             @Override
@@ -70,11 +76,13 @@ public class EditPicture extends AppCompatActivity implements Editor.OnSaveListe
                     imageEditor.saveImage();
                 } catch (IOException e) {
                     Toast.makeText(getBaseContext(), "Something went wrong with saving your image ...", Toast.LENGTH_LONG).show();
+                    saveStatus.setText(R.string.error);
                     e.printStackTrace();
                 }
             }
         });
 
+        initSaveMode();
         updatePreview();
     }
 
@@ -83,13 +91,18 @@ public class EditPicture extends AppCompatActivity implements Editor.OnSaveListe
     }
 
     @Override
-    public void onSave(File savedImg) {
-        Snackbar.make(mImageView, "Image saved", Snackbar.LENGTH_LONG).setAction("View", new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //todo action to view
-            }
-        }).show();
+    public void onSave(File imgFile) {
+        /* todo, make the save button become flat and say "isSaved!", add another button to view the picture,
+         * and if they edit the pic again switch it back to save, and on save ask if they want to overwrite
+         * their last one or if they wanna keep both */
+        //todo - make save button flat
+        onImgSave();
+
+        //todo - make save button ask for overwrite
+        if(!isSaved) {
+            setSaved(true);
+            setImgFile(imgFile);
+        }
     }
 
 //    private static class LoadDataForActivity extends AsyncTask<Void, Void, Void> {
@@ -163,32 +176,104 @@ public class EditPicture extends AppCompatActivity implements Editor.OnSaveListe
         startActivity(i); //goes back to main activity
     }
 
-//    private void saveImage(){     // this only works for the file from camera not content uri
-//        File imageToSaveFile = getTempFile();
-//
-//        FileOutputStream out = null;
-//        try {
-//            out = new FileOutputStream(Objects.requireNonNull(imageToSaveFile));
-//            previewImg.compress(Bitmap.CompressFormat.PNG, 100, out); // bmp is your Bitmap instance
-//            // PNG is a lossless format, the compression factor (100) is ignored
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//        } finally {
-//            try {
-//                if (out != null) {
-//                    out.close();
-//                }
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//        }
-//
-//        addToGallery(imageToSaveFile);
-//    }
-//
-//    void addToGallery(File imageFile) {
-//        Intent mediaScanIntent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-//        mediaScanIntent.setData(Uri.fromFile(imageFile));//todo cant it just be imageUri?
-//        this.sendBroadcast(mediaScanIntent);
-//    }
+    private void viewImage() {
+        // Get URI and MIME type of file
+        Uri uri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, imgFile);
+        String mime = getContentResolver().getType(uri);
+
+        // Open file with user selected app
+        Intent intent = new Intent();
+        intent.setAction(Intent.ACTION_VIEW);
+        intent.setDataAndType(uri, mime);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(intent);
+    }
+
+    private void onImgSave() {
+        viewButton.setVisibility(View.VISIBLE);
+        saveButton.animate().alpha(0).setDuration(ANIMATION_DURATION).start();
+        showSaveMode(false);
+        saveStatus.setText(R.string.saved);
+        new Handler().postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                saveButton.setVisibility(View.GONE);
+            }
+        }, ANIMATION_DURATION);
+    }
+
+    private void setSaved(boolean saved) {
+        this.isSaved = saved;
+    }
+
+    private void setImgFile(File imgFile) {
+        this.imgFile = imgFile;
+    }
+
+    @Override
+    public void onEdit() {
+        if(isSaved) {
+            saveButton.setVisibility(View.VISIBLE);
+            saveButton.animate().alpha(1).setDuration(ANIMATION_DURATION).start();
+            new Handler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    viewButton.setVisibility(View.INVISIBLE);
+                }
+            }, ANIMATION_DURATION);
+            showSaveMode(true);
+        }
+
+        setSaved(false);
+    }
+
+    private void showSaveMode(boolean show) {
+        if(show) {
+            saveStatus.animate().alpha(0).setDuration(ANIMATION_DURATION).start();
+            saveMode.animate().alpha(1).setDuration(ANIMATION_DURATION).start();
+        } else {
+            saveStatus.animate().alpha(1).setDuration(ANIMATION_DURATION).start();
+            saveMode.animate().alpha(0).setDuration(ANIMATION_DURATION).start();
+        }
+    }
+
+    private void initSaveMode() {
+        boolean overwriteMode = Utils.readSharedSetting(this, "overwrite_mode", false);
+
+        saveMode = findViewById(R.id.save_mode);
+        saveMode.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                toggleSaveMode();
+            }
+        });
+
+        if(overwriteMode) {
+            setOverwriteMode();
+        } else {
+            setCopyMode();
+        }
+    }
+
+    private void toggleSaveMode() {
+        boolean overwriteMode = Utils.readSharedSetting(this, "overwrite_mode", false);
+
+        if(!overwriteMode) {
+            setOverwriteMode();
+        } else {
+            setCopyMode();
+        }
+
+        Utils.saveSharedSetting(this, "overwrite_mode", !overwriteMode);
+    }
+
+    private void setOverwriteMode() {
+        saveMode.setText(R.string.overwrite);
+        saveMode.setTextColor(getResources().getColor(R.color.overwriteColor));
+    }
+
+    private void setCopyMode() {
+        saveMode.setText(R.string.copy);
+        saveMode.setTextColor(getResources().getColor(R.color.colorPrimaryDark));
+    }
 }

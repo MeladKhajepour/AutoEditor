@@ -176,7 +176,7 @@ public class MainActivity extends AppCompatActivity {
             //setTempFile(tempFile);
             Uri imageUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, tempFile);
 
-            setContentUri(imageUri);//remove and put in camera function
+            setContentUri(imageUri);
             return imageUri;
         }
 

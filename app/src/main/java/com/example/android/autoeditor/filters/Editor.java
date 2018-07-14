@@ -5,17 +5,13 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Environment;
-import android.support.design.widget.Snackbar;
-import android.support.v4.content.FileProvider;
 
-import com.example.android.autoeditor.BuildConfig;
 import com.example.android.autoeditor.EditPicture;
 import com.example.android.autoeditor.R;
 import com.example.android.autoeditor.utils.Cluster;
 import com.example.android.autoeditor.utils.ClusterParams;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,7 +28,7 @@ import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
 import static com.example.android.autoeditor.utils.Utils.getPreviewHeight;
 import static com.example.android.autoeditor.utils.Utils.getPreviewWidth;
 
-public class Editor {
+public class Editor implements Cluster.OnFilterAdjusted {
     private static Uri contentUri;
     private EditPicture activity;
     private List<Cluster> clusters = new ArrayList<>();
@@ -44,7 +40,7 @@ public class Editor {
         this.activity = activity;
         createPreviewBitmap();
         initClusters();
-        Filters.init(mutablePreviewImg);
+        Filters.initFilter(mutablePreviewImg);
     }
 
     private void createPreviewBitmap() throws IOException, NullPointerException {
@@ -83,6 +79,7 @@ public class Editor {
 
         savedImgFile = new File(pictureDir, imageFileName);
         FileOutputStream outStream = new FileOutputStream(savedImgFile);
+        originalImg = Filters.applyFinalEdits(activity, originalImg);
         originalImg.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
 
         outStream.flush();
@@ -106,6 +103,7 @@ public class Editor {
         );
     }
 
+    @Override
     public void setActiveFilter(Cluster.ActiveFilter activeFilter) {
         this.activeFilter = activeFilter;
 
@@ -116,14 +114,6 @@ public class Editor {
 
     public void destroyRs() {
         Filters.destroyRs();
-    }
-
-    public Bitmap getOriginalBitmap() {
-        if(originalImg == null) {
-            createOriginalImg();
-        }
-
-        return originalImg;
     }
 
     public Bitmap getPreviewBitmap() {
@@ -142,12 +132,16 @@ public class Editor {
         mutablePreviewImg = Filters.applyFilter(activeFilter);
     }
 
-    private void createOriginalImg() {
-
+    public interface OnSaveListener {
+        void onSave(File imgFile);
     }
 
-    public interface OnSaveListener {
-        void onSave(File savedImg);
+    public interface OnEditListener {
+        void onEdit();
+    }
+
+    public void onEdit() {
+        activity.onEdit();
     }
 
     public static void setContentUri(Uri uri) {

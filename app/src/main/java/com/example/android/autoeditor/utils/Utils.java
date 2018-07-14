@@ -85,10 +85,22 @@ public class Utils {
         return sharedPref.getString(settingName, defaultValue);
     }
 
+    public static boolean readSharedSetting(Context ctx, String settingName, boolean defaultValue) {
+        SharedPreferences sharedPref = ctx.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
+        return sharedPref.getBoolean(settingName, defaultValue);
+    }
+
     public static void saveSharedSetting(Context ctx, String settingName, String settingValue) {
         SharedPreferences sharedPref = ctx.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
         editor.putString(settingName, settingValue);
+        editor.apply();
+    }
+
+    public static void saveSharedSetting(Context ctx, String settingName, boolean settingValue) {
+        SharedPreferences sharedPref = ctx.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(settingName, settingValue);
         editor.apply();
     }
 

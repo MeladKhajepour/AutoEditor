@@ -23,12 +23,17 @@ public class Filters {
     private static Bitmap originalImg;
     private static Bitmap sharpenedImg;
     private static Bitmap finalImg;
+    private static Paint paint;
     private static Canvas canvas;
+    private static ColorMatrix saturationMatrix;
+    private static ColorMatrix finalColorMatrix;
     private static float[] brightnessStrength;
     private static float[] contrastStrength;
     private static float[] sharpnessStrength;
     private static float[] saturationStrength;
     private static float[] colorMatrixVals;
+    private static float blurRadius;
+    private static boolean blurred;
 
     // RenderScript fields
     private static RenderScript rs;
@@ -37,12 +42,21 @@ public class Filters {
     private static ScriptIntrinsicConvolve3x3 convolutionScript;
     private static ScriptIntrinsicBlur blurScript;
 
-    public static void init(Bitmap img) {
+    public static void initFilter(Bitmap img) {
         originalImg = img;
         sharpenedImg = img.copy(img.getConfig(), true);
         finalImg = Bitmap.createBitmap(img.getWidth(), img.getHeight(), img.getConfig());
+        paint = new Paint();
         canvas = new Canvas(finalImg);
-        initMatrices();
+        saturationMatrix = new ColorMatrix();
+        finalColorMatrix = new ColorMatrix();
+        brightnessStrength = contrastStrength = sharpnessStrength = saturationStrength = colorMatrixVals = new float[] {
+                1, 0, 0, 0, 0,
+                0, 1, 0, 0, 0,
+                0, 0, 1, 0, 0,
+                0, 0, 0, 1, 0
+        };
+        blurred = false;
     }
 
     public static Bitmap applyFilter(Cluster.ActiveFilter filter) {
@@ -72,6 +86,36 @@ public class Filters {
     }
 
     /*
+     * Called when save button pressed
+     *
+     * Paint is already set
+     */
+    public static Bitmap applyFinalEdits(EditPicture activity, Bitmap img) {
+        rs = RenderScript.create(activity);
+        allocIn = Allocation.createFromBitmap(rs, img);
+        allocOut = Allocation.createFromBitmap(rs, img);
+
+        if(blurred) {
+            blurScript = ScriptIntrinsicBlur.create(rs, Element.U8_4(rs));
+            blurScript.setInput(allocIn);
+            blurScript.setRadius(blurRadius);
+            blurScript.forEach(allocOut);
+            allocOut.copyTo(img);
+        } else {
+            convolutionScript = ScriptIntrinsicConvolve3x3.create(rs, Element.U8_4(rs));
+            convolutionScript.setInput(allocIn);
+            convolutionScript.setCoefficients(sharpnessStrength);
+            convolutionScript.forEach(allocOut);
+            allocOut.copyTo(img);
+        }
+
+        Canvas canvas = new Canvas(img);
+        canvas.drawBitmap(img, 0, 0, paint);
+
+        return img;
+    }
+
+    /*
      * Called in onStartTrackingTouch in Cluster
      */
     public static void initRs(EditPicture activity) {
@@ -94,19 +138,6 @@ public class Filters {
         allocOut.destroy();
         blurScript.destroy();
         rs.destroy();
-    }
-
-    /*
-     * Called when save button pressed
-     */
-
-    private static void initMatrices() {
-        brightnessStrength = contrastStrength = saturationStrength = new float[] {
-                1, 0, 0, 0, 0,
-                0, 1, 0, 0, 0,
-                0, 0, 1, 0, 0,
-                0, 0, 0, 1, 0
-        };
     }
 
     private static void brightnessFilter(float strength) {
@@ -137,9 +168,11 @@ public class Filters {
     private static void sharpnessFilter(float strength) {
         if(strength < 0) {
             blurBitmap(strength/-4);
+            blurred = true;
             return;
         }
 
+        blurred = false;
         float d = strength/100f;
         float o = d *  (float) Math.sqrt(2);
         float c = (o * 4) + (d * 4) + 1;
@@ -157,30 +190,27 @@ public class Filters {
 
     private static void saturationFilter(float strength) {
         strength = strength > 0 ? (float) Math.pow(1.01, strength) : (strength + 100)/100;
-        ColorMatrix saturationMatrix = new ColorMatrix();
         saturationMatrix.setSaturation(strength);
         saturationStrength = saturationMatrix.getArray();
     }
 
     private static void blurBitmap(float radius) {
         //Set blur radius (maximum 25.0)
+        blurRadius = radius;
         blurScript.setRadius(radius);
         blurScript.forEach(allocOut);
         allocOut.copyTo(sharpenedImg);
     }
 
     private static void concatMatrices() {
-        ColorMatrix matrix = new ColorMatrix();
-        matrix.postConcat(new ColorMatrix(brightnessStrength));
-        matrix.postConcat(new ColorMatrix(contrastStrength));
-        matrix.postConcat(new ColorMatrix(saturationStrength));
-        colorMatrixVals = matrix.getArray();
+        finalColorMatrix.postConcat(new ColorMatrix(brightnessStrength));
+        finalColorMatrix.postConcat(new ColorMatrix(contrastStrength));
+        finalColorMatrix.postConcat(new ColorMatrix(saturationStrength));
+        colorMatrixVals = finalColorMatrix.getArray();
     }
 
     private static void createFinalImg() {
-        Paint paint = new Paint();
         paint.setColorFilter(new ColorMatrixColorFilter(colorMatrixVals));
-
         canvas.drawBitmap(sharpenedImg, 0, 0, paint);
     }
 }

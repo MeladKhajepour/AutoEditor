@@ -55,6 +55,7 @@ public class Cluster {
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
                 editor.setActiveFilter(activeFilter);
+                editor.onEdit();
             }
 
             @Override
@@ -114,6 +115,10 @@ public class Cluster {
         }
 
         editor.updatePreview();
+    }
+
+    public interface OnFilterAdjusted {
+        void setActiveFilter(ActiveFilter activeFilter);
     }
 
     public class ActiveFilter {
