@@ -203,6 +203,7 @@ public class Filters {
     }
 
     private static void concatMatrices() {
+        finalColorMatrix.reset();
         finalColorMatrix.postConcat(new ColorMatrix(brightnessStrength));
         finalColorMatrix.postConcat(new ColorMatrix(contrastStrength));
         finalColorMatrix.postConcat(new ColorMatrix(saturationStrength));

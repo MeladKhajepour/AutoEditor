@@ -74,7 +74,7 @@ public class Editor implements Cluster.OnFilterAdjusted {
         pictureDir = new File(pictureDir.getAbsolutePath() + File.separator + "AutoEdits");
         pictureDir.mkdirs();
 
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
+        String timeStamp = new SimpleDateFormat("yyMMdd_HHmmss", Locale.CANADA).format(new Date());
         String imageFileName = "AE_" + timeStamp + ".jpeg";
 
         savedImgFile = new File(pictureDir, imageFileName);
