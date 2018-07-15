@@ -45,7 +45,6 @@ public class Editor implements Cluster.OnFilterAdjusted {
         this.activity = activity;
         createPreviewBitmap();
         initClusters();
-        Filters.initFilter(previewBitmap);
     }
 
     private void createPreviewBitmap() throws IOException, NullPointerException {
@@ -54,27 +53,24 @@ public class Editor implements Cluster.OnFilterAdjusted {
         options.inJustDecodeBounds = true;
 
         InputStream is = activity.getContentResolver().openInputStream(contentUri);
-
-        if(is != null) {
-            BitmapFactory.decodeStream(is, null, options);
-            is.close();
-
-            options.inSampleSize = calculateInSampleSize(options, imageScaleX, imageScaleY);
-            options.inJustDecodeBounds = false;
-        } else {
+        if(is == null) {
             throw new NullPointerException("Image stream null");
         }
+        BitmapFactory.decodeStream(is, null, options);
+        is.close();
+
+        options.inSampleSize = calculateInSampleSize(options, imageScaleX, imageScaleY);
+        options.inJustDecodeBounds = false;
 
         is = activity.getContentResolver().openInputStream(contentUri);
-
-        if(is != null) {
-            previewBitmap = BitmapFactory.decodeStream(is, null, options);
-            is.close();
-        } else {
+        if(is == null) {
             throw new NullPointerException("Image stream null");
         }
+        previewBitmap = BitmapFactory.decodeStream(is, null, options);
+        is.close();
 
         previewBitmap = rotateImageIfRequired(activity, previewBitmap, contentUri);
+        Filters.initFilter(previewBitmap);
     }
 
     private void initClusters() {

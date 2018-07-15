@@ -179,7 +179,7 @@ public class Filters {
 
     private static void createFinalImg() {
         paint.setColorFilter(new ColorMatrixColorFilter(finalColorMatrix));
-        canvas.drawBitmap(sharpenedImg, 0, 0, paint);
+        canvas.drawBitmap(sharpenedImg, 0, 0, paint); //modifies finalImg;
     }
 
     /*
