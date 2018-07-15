@@ -32,14 +32,12 @@ import java.util.List;
 public class Utils {
 
     private static final String PREFERENCES_FILE = "PREFS";
+    public static final String OVERWRITE_FLAG = "should_overwrite";
     public static final int CONTRAST_FILTER = 0;
     public static final int EXPOSURE_FILTER = 1;
     public static final int SATURATION_FILTER = 2;
     public static final int UNSHARP_MASK_SHARPEN = 3;
     public static final int CONVOLUTION_SHARPEN = 4;
-
-    private static int imageScaleX;
-    private static int imageScaleY;
 
     private static ColorMatrix contrastCm = new ColorMatrix();
     private static ColorMatrix exposureCm = new ColorMatrix();
@@ -85,6 +83,11 @@ public class Utils {
         return sharedPref.getString(settingName, defaultValue);
     }
 
+    public static boolean readSharedSetting(Context ctx, String settingName, boolean defaultValue) {
+        SharedPreferences sharedPref = ctx.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
+        return sharedPref.getBoolean(settingName, defaultValue);
+    }
+
     public static void saveSharedSetting(Context ctx, String settingName, String settingValue) {
         SharedPreferences sharedPref = ctx.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPref.edit();
@@ -92,29 +95,11 @@ public class Utils {
         editor.apply();
     }
 
-    public static void darkenStatusBar(Activity activity, int baseColour) {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-
-            float[] hsv = new float[3];
-            Color.colorToHSV(baseColour, hsv);
-            hsv[2] *= 0.8f;
-            activity.getWindow().setStatusBarColor(Color.HSVToColor(hsv));
-        }
-
-    }
-
-    public static void setViewDimens(View view) {
-        imageScaleX = view.getWidth();
-        imageScaleY = view.getHeight();
-    }
-
-    public static int getPreviewWidth() {
-        return imageScaleX;
-    }
-
-    public static int getPreviewHeight() {
-        return imageScaleY;
+    public static void saveSharedSetting(Context ctx, String settingName, boolean settingValue) {
+        SharedPreferences sharedPref = ctx.getSharedPreferences(PREFERENCES_FILE, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = sharedPref.edit();
+        editor.putBoolean(settingName, settingValue);
+        editor.apply();
     }
 
     public static Bitmap applyFilter(Context ctx, Bitmap bmp, float value, int filter){

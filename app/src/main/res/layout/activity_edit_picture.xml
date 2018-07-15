@@ -8,13 +8,119 @@
     android:padding="8dp">
 
     <ImageView
+        android:id="@+id/preview"
         android:layout_width="match_parent"
-        android:layout_height="480dp"
+        android:layout_height="520dp"
         android:adjustViewBounds="true"
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
-        android:id="@+id/selected_picture_image_view"
         android:contentDescription="@string/edit_picture_Image" />
+
+    <TextView
+        android:id="@+id/exposure_label"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@+id/preview"
+        android:paddingTop="6dp"
+        android:text="@string/exposure"/>
+
+    <SeekBar
+        android:id="@+id/exposure_seekbar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintStart_toEndOf="@id/exposure_label"
+        app:layout_constraintTop_toTopOf="@id/exposure_label"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:paddingTop="6dp"/>
+
+    <TextView
+        android:id="@+id/contrast_label"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@id/exposure_seekbar"
+        android:paddingTop="6dp"
+        android:text="@string/contrast"/>
+
+    <SeekBar
+        android:id="@+id/contrast_seekbar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="@+id/contrast_label"
+        app:layout_constraintStart_toEndOf="@id/contrast_label"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:paddingTop="6dp" />
+
+    <TextView
+        android:id="@+id/sharpen_label"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@+id/contrast_seekbar"
+        android:paddingTop="6dp"
+        android:text="@string/sharpness"/>
+
+    <SeekBar
+        android:id="@+id/sharpen_seekbar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="@+id/sharpen_label"
+        app:layout_constraintStart_toEndOf="@id/sharpen_label"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:paddingTop="6dp" />
+
+    <TextView
+        android:id="@+id/saturation_label"
+        android:layout_width="100dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toBottomOf="@+id/sharpen_seekbar"
+        android:paddingTop="6dp"
+        android:text="@string/saturation"/>
+
+    <SeekBar
+        android:id="@+id/saturation_seekbar"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="@+id/saturation_label"
+        app:layout_constraintStart_toEndOf="@id/saturation_label"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:paddingTop="6dp" />
+
+    <TextView
+        android:id="@+id/save_status"
+        app:layout_constraintEnd_toEndOf="@id/view_button"
+        app:layout_constraintStart_toStartOf="@id/view_button"
+        app:layout_constraintBottom_toBottomOf="@+id/save_mode"
+        app:layout_constraintTop_toTopOf="@+id/save_mode"
+        android:textSize="8pt"
+        android:text="@string/saved"
+        android:textColor="@color/colorPrimaryDark"
+        android:textAlignment="center"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"/>
+
+    <Button
+        android:id="@+id/save_mode"
+        android:layout_width="wrap_content"
+        android:layout_height="36dp"
+        android:layout_marginBottom="6dp"
+        app:layout_constraintEnd_toEndOf="@id/view_button"
+        app:layout_constraintStart_toStartOf="@id/view_button"
+        app:layout_constraintBottom_toTopOf="@+id/view_button"
+        style="@style/Widget.AppCompat.Button.Borderless.Colored"
+        android:textSize="5.5pt"
+        android:textColor="@color/colorPrimaryDark"
+        android:alpha="0"
+        android:padding="2dp"/>
+
+    <Button
+        android:id="@+id/view_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:layout_marginEnd="16dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:text="@string/view"
+        android:theme="@style/ViewButton"/>
 
     <Button
         android:id="@+id/save_button"
@@ -25,61 +131,6 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         android:text="@string/save"
-        style="@style/Widget.AppCompat.Button.Colored"/>
-
-    <TextView
-        android:id="@+id/exposure_label"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/contrast_seekbar"
-        android:padding="8dp"
-        android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
-
-    <SeekBar
-        android:id="@+id/exposure_seekbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@id/exposure_label"/>
-
-    <TextView
-        android:id="@+id/contrast_label"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:padding="8dp"
-        android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
-
-    <SeekBar
-        android:id="@+id/contrast_seekbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/contrast_label"/>
-
-    <TextView
-        android:id="@+id/sharpen_label"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/exposure_seekbar"
-        android:padding="8dp"
-        android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
-
-    <SeekBar
-        android:id="@+id/sharpen_seekbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/sharpen_label"/>
-
-    <TextView
-        android:id="@+id/saturation_label"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/sharpen_seekbar"
-        android:padding="8dp"
-        android:textAppearance="@android:style/TextAppearance.Holo.Medium" />
-
-    <SeekBar
-        android:id="@+id/saturation_seekbar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        app:layout_constraintTop_toBottomOf="@+id/saturation_label"/>
+        android:theme="@style/SaveButton"/>
   
 </android.support.constraint.ConstraintLayout>

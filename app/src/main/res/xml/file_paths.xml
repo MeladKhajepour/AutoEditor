@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths >
-    <external-path name="storage/emulated/0" path="Android/data/com.example.android.autoeditor/files/Pictures" />
+    <external-path name="camera_capture" path="Android/data/com.example.android.autoeditor/files/Pictures" />
+    <external-path name="saved_img" path="AutoEdits" />
 </paths>

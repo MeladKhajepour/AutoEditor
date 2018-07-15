@@ -5,12 +5,9 @@ import android.os.Handler;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import com.example.android.autoeditor.EditPicture;
 import com.example.android.autoeditor.filters.Editor;
 
 import java.util.Locale;
-
-import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
 
 /*
 *
@@ -33,12 +30,10 @@ public class Cluster {
     public Cluster(ClusterParams params) {
         editor = params.editor;
         filterType = params.filterType;
+        seekBar = params.seekBar;
+        textView = params.textView;
+        prefix = params.prefix;
         activeFilter = new ActiveFilter();
-
-        EditPicture activity = editor.getActivity();
-        seekBar = activity.findViewById(params.seekBarId);
-        textView = activity.findViewById(params.textViewId);
-        prefix = activity.getResources().getString(params.prefixId);
 
         initSeekbar();
         updateLabel(prefix, activeFilter.strength);
@@ -54,21 +49,20 @@ public class Cluster {
 
             @Override
             public void onStartTrackingTouch(SeekBar seekBar) {
-                editor.setActiveFilter(activeFilter);
+                editor.onSeekBarTouch(activeFilter);
             }
 
             @Override
             public void onProgressChanged(SeekBar seekBar, int progress, boolean b) {
                 activeFilter.strength = progress - 100;
-
-                editor.applyFilter();
                 updateLabel(prefix, activeFilter.strength);
-                updatePreview();
+
+                editor.onEdit();
             }
 
             @Override
             public void onStopTrackingTouch(final SeekBar seekBar) {
-                if(inDoubleTapWindow && Math.abs(initialProgress - seekBar.getProgress()) <= 25) {
+                if(inDoubleTapWindow && Math.abs(initialProgress - seekBar.getProgress()) <= 40) {
                     reset();
                     return;
                 }
@@ -83,20 +77,18 @@ public class Cluster {
                     }
                 }, 250);
 
-                if(filterType == CONVOLUTION_SHARPEN) {
-                    editor.destroyRs();
-                }
-
-                editor.setActiveFilter(null);
+                editor.onSeekBarRelease();
             }
 
             private void reset() {
                 initialProgress = 0;
                 inDoubleTapWindow = false;
-                activeFilter.strength = 0;
 
-                resetCluster();
-                updateLabel(prefix, activeFilter.strength);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    seekBar.setProgress(100, true);
+                } else {
+                    seekBar.setProgress(100);
+                }
             }
         });
     }
@@ -105,28 +97,17 @@ public class Cluster {
         textView.setText(String.format(Locale.getDefault(), prefix + " " + "%d", (int) strength));
     }
 
-    private void updatePreview() {
-        editor.updatePreview();
-    }
-
-    private void resetCluster() {
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            seekBar.setProgress(100, true);
-        } else {
-            seekBar.setProgress(100);
-        }
-
-        updatePreview();
+    public interface OnFilterAdjusted {
+        void onSeekBarTouch(ActiveFilter activeFilter);
+        void onEdit();
+        void onSeekBarRelease();
     }
 
     public class ActiveFilter {
-        public final Cluster cluster;
         public final int filterType;
         public float strength;
 
         private ActiveFilter() {
-            cluster = _this;
             filterType = _this.filterType;
         }
     }
