@@ -7,16 +7,15 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.Fragment;
 import android.support.v4.app.FragmentManager;
 import android.support.v4.app.FragmentPagerAdapter;
 import android.support.v4.content.ContextCompat;
 import android.support.v4.view.ViewPager;
 import android.support.v7.app.AppCompatActivity;
-import android.util.SparseBooleanArray;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -61,24 +60,18 @@ public class Onboarding extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setContentView(R.layout.activity_onboarding);
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            getWindow().getDecorView().setSystemUiVisibility(
-                    View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
-            Utils.darkenStatusBar(this, R.color.cyan);
-        }
-
-        mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
         onboardingActivity = this;
 
-        mNextBtn = findViewById(R.id.intro_btn_next);
-        if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.LOLLIPOP)
-            mNextBtn.setImageDrawable(
-                    Utils.tintMyDrawable(ContextCompat.getDrawable(this, R.drawable.ic_chevron_right_24dp), Color.WHITE)
-            );
+        initViews();
+        initColorSwitcher();
+        darkenStatusBar(R.color.cyan);
+    }
 
+    private void initViews() {
+        mSectionsPagerAdapter = new SectionsPagerAdapter(getSupportFragmentManager());
+
+        mNextBtn = findViewById(R.id.intro_btn_next);
         mSkipBtn = findViewById(R.id.intro_btn_skip);
         mFinishBtn = findViewById(R.id.intro_btn_finish);
 
@@ -88,13 +81,41 @@ public class Onboarding extends AppCompatActivity {
 
         indicators = new ImageView[]{zero, one, two};
 
-        // Set up the ViewPager with the sections adapter.
         mViewPager = findViewById(R.id.container);
         mViewPager.setAdapter(mSectionsPagerAdapter);
-
         mViewPager.setCurrentItem(page);
         updateIndicators(page);
 
+        mNextBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                page += 1;
+                mViewPager.setCurrentItem(page, true);
+            }
+        });
+
+        mSkipBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                mViewPager.setCurrentItem(2, true);
+            }
+        });
+
+        mFinishBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if(Utils.allPermissionsGranted(onboardingActivity)) {
+                    finish();
+                } else {
+                    Utils.requestMissingPermissions(onboardingActivity);
+                }
+                saveSharedSetting(Onboarding.this, MainActivity.PREF_USER_FIRST_TIME, false);
+            }
+        });
+    }
+
+    private void initColorSwitcher() {
         final int color1 = ContextCompat.getColor(this, R.color.cyan);
         final int color2 = ContextCompat.getColor(this, R.color.orange);
         final int color3 = ContextCompat.getColor(this, R.color.green);
@@ -106,13 +127,9 @@ public class Onboarding extends AppCompatActivity {
         mViewPager.addOnPageChangeListener(new ViewPager.OnPageChangeListener() {
             @Override
             public void onPageScrolled(int position, float positionOffset, int positionOffsetPixels) {
-
-                /*
-                color update
-                 */
                 int colorUpdate = (Integer) evaluator.evaluate(positionOffset, colorList[position], colorList[position == 2 ? position : position + 1]);
                 mViewPager.setBackgroundColor(colorUpdate);
-                Utils.darkenStatusBar(onboardingActivity, colorUpdate);
+                darkenStatusBar(colorUpdate);
             }
 
             @Override
@@ -146,40 +163,22 @@ public class Onboarding extends AppCompatActivity {
 
             }
         });
+    }
 
-        mNextBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                page += 1;
-                mViewPager.setCurrentItem(page, true);
-            }
-        });
-
-        mSkipBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-
-                mViewPager.setCurrentItem(2, true);
-            }
-        });
-
-        mFinishBtn.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                saveSharedSetting(Onboarding.this, MainActivity.PREF_USER_FIRST_TIME, "false");
-
-                if(Utils.allPermissionsGranted(onboardingActivity)) {
-                    finish();
-                } else {
-                    Utils.requestMissingPermissions(onboardingActivity);
-                }
-            }
-        });
-
+    private void darkenStatusBar(int baseColour) {
+        float[] hsv = new float[3];
+        Color.colorToHSV(baseColour, hsv);
+        hsv[2] *= 0.8f;
+        getWindow().setStatusBarColor(Color.HSVToColor(hsv));
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+
+        if(!ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[0]) ||
+                (!ActivityCompat.shouldShowRequestPermissionRationale(this, permissions[1])) && permissions.length == 2) {
+            finish();
+        }
 
         if(permissionsDenied(grantResults)) {
             String alertBodyText = getAlertBodyText(permissions, grantResults);
@@ -262,9 +261,9 @@ public class Onboarding extends AppCompatActivity {
         TextView descTv;
         ImageView img;
 
-        int[] header = new int[] {R.string.page_1_header, R.string.page_2_header, R.string.page_3_header};
-        int[] desc = new int[] {R.string.page_1_desc, R.string.page_2_desc, R.string.page_3_desc};
-        int[] bgs = new int[] {R.drawable.ic_flight_24dp, R.drawable.ic_mail_24dp, R.drawable.ic_explore_24dp};
+        int[] headers = new int[] {R.string.page_1_header, R.string.page_2_header, R.string.page_3_header};
+        int[] descriptions = new int[] {R.string.page_1_desc, R.string.page_2_desc, R.string.page_3_desc};
+        int[] images = new int[] {R.drawable.ic_flight_24dp, R.drawable.ic_mail_24dp, R.drawable.ic_explore_24dp};
 
         public OnboardingFragment() {
         }
@@ -289,11 +288,11 @@ public class Onboarding extends AppCompatActivity {
             descTv = rootView.findViewById(R.id.section_desc);
 
             assert getArguments() != null;
-            headerTv.setText(header[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
-            descTv.setText(desc[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
+            headerTv.setText(headers[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
+            descTv.setText(descriptions[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
 
             img = rootView.findViewById(R.id.section_img);
-            img.setBackgroundResource(bgs[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
+            img.setBackgroundResource(images[getArguments().getInt(ARG_SECTION_NUMBER) - 1]);
 
 
             return rootView;

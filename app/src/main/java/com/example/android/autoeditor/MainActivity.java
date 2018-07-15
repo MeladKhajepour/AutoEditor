@@ -26,23 +26,21 @@ import android.widget.ImageButton;
 import android.widget.Toast;
 
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
 import static com.example.android.autoeditor.filters.Editor.setContentUri;
+import static com.example.android.autoeditor.filters.Editor.setViewDimens;
 import static com.example.android.autoeditor.utils.Utils.readSharedSetting;
 import static com.example.android.autoeditor.utils.Utils.requestPermission;
-import static com.example.android.autoeditor.utils.Utils.setViewDimens;
 
 public class MainActivity extends AppCompatActivity {
     public static final int CAMERA_REQUEST_CODE = (int) Math.floor(7*Math.random()*100);
     public static final int MEDIA_REQUEST_CODE = (int) Math.floor(11*Math.random()*100);
     public static final String PREF_USER_FIRST_TIME = "user_first_time";
 
-    boolean isUserFirstTime;
     private Activity mainActivity;
     private ImageButton cameraBtn, galleryBtn;
 
@@ -59,32 +57,8 @@ public class MainActivity extends AppCompatActivity {
         initImageSelectionBtns();
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.overflow_menu, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-
-        switch (id) {
-
-            case R.id.how_app_works:
-                //Todo: interesting page about how app works? maybe Medium article to get more exposure?
-                break;
-
-            case R.id.settings:
-                //Todo: settings activity
-                break;
-        }
-
-        return super.onOptionsItemSelected(item);
-    }
-
     private void checkOnboarding() {
-        isUserFirstTime = Boolean.valueOf(readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, "true"));
+        boolean isUserFirstTime = readSharedSetting(MainActivity.this, PREF_USER_FIRST_TIME, true);
 
         if (isUserFirstTime) {
             startActivity(new Intent(mainActivity, Onboarding.class));
@@ -126,6 +100,30 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.overflow_menu, menu);
+        return true;
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+
+        switch (id) {
+
+            case R.id.how_app_works:
+                //Todo: interesting page about how app works? maybe Medium article to get more exposure?
+                break;
+
+            case R.id.settings:
+                //Todo: settings activity
+                break;
+        }
+
+        return super.onOptionsItemSelected(item);
+    }
+
     private void selectFromCamera() {
         String permission = Manifest.permission.CAMERA;
         if(hasPermission(permission)) {
@@ -156,12 +154,12 @@ public class MainActivity extends AppCompatActivity {
         return ContextCompat.checkSelfPermission(mainActivity, permission) == PackageManager.PERMISSION_GRANTED;
     }
 
-    private void askPermission(String permission, int code) {//todo ask for both perms
+    private void askPermission(String permission, int code) {//todo check for file perm on saving
         ActivityCompat.requestPermissions(mainActivity, new String[] {permission}, code);
     }
 
-    private Uri createDesinationFileUri() throws IOException {//has to fire every time to save pic
-        String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss", Locale.CANADA).format(new Date());
+    private Uri createDesinationFileUri() throws IOException {
+        String timeStamp = new SimpleDateFormat("yyMMdd_HHmmss", Locale.CANADA).format(new Date());
         String imageFileSuffix = ".jpg";
         String imageFileName = "AE_" + timeStamp;
         File picturesDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
@@ -173,7 +171,6 @@ public class MainActivity extends AppCompatActivity {
             folder.mkdirs();
 
             File tempFile = File.createTempFile(imageFileName, imageFileSuffix, folder);
-            //setTempFile(tempFile);
             Uri imageUri = FileProvider.getUriForFile(this, BuildConfig.APPLICATION_ID, tempFile);
 
             setContentUri(imageUri);
@@ -183,19 +180,13 @@ public class MainActivity extends AppCompatActivity {
         return null;
     }
 
-    private void selectFromGallery() {//todo may need to remove content intent
+    private void selectFromGallery() {
         String permission = Manifest.permission.WRITE_EXTERNAL_STORAGE;
         if(hasPermission(permission)) {
             Intent fileBrowserIntent = new Intent(Intent.ACTION_GET_CONTENT).setType("image/*");//file browser
 
-
             if (fileBrowserIntent.resolveActivity(getPackageManager()) != null) {
                 startActivityForResult(Intent.createChooser(fileBrowserIntent, "Select Image From"), MEDIA_REQUEST_CODE);
-
-            } else if(fileBrowserIntent.resolveActivity(getPackageManager()) == null) {// user has no file browser so try gallery
-                Intent imageBrowserIntent = new Intent(Intent.ACTION_PICK).setType("image/*");//image browser
-                startActivityForResult(Intent.createChooser(imageBrowserIntent, "Select Image From"), MEDIA_REQUEST_CODE);
-
             }
         } else {
             askPermission(permission, MEDIA_REQUEST_CODE);
@@ -205,17 +196,17 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent) {
         super.onActivityResult(requestCode, resultCode, intent);
-        Intent editImageActivity = new Intent(this, EditPicture.class);
+        Intent editPictureActivity = new Intent(this, EditPicture.class);
 
         if (requestCode == CAMERA_REQUEST_CODE &&  resultCode == Activity.RESULT_OK) {
-            startActivity(editImageActivity);
+            startActivity(editPictureActivity);
 
         } else if (requestCode == MEDIA_REQUEST_CODE && resultCode == Activity.RESULT_OK) {
             Uri imageUri = intent.getData();
 
             if(imageUri != null) {
                 setContentUri(imageUri);
-                startActivity(editImageActivity);
+                startActivity(editPictureActivity);
 
             } else {
                 //todo alert user something isnt right and couldnt get selected image

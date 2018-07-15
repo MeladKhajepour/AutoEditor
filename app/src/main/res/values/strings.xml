@@ -36,4 +36,7 @@
     <string name="error">Error</string>
     <string name="overwrite">Overwrite</string>
     <string name="copy">New copy</string>
+    <string name="overwrite_confirmation">Overwrite previous image?</string>
+    <string name="overwrite_description">The previous image will be overwritten with the current edits. This cannot be undone.</string>
+    <string name="cancel">Cancel</string>
 </resources>
