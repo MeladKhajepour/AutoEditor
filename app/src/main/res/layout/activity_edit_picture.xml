@@ -88,8 +88,8 @@
         android:id="@+id/save_status"
         app:layout_constraintEnd_toEndOf="@id/view_button"
         app:layout_constraintStart_toStartOf="@id/view_button"
-        app:layout_constraintBottom_toBottomOf="@+id/save_mode"
-        app:layout_constraintTop_toTopOf="@+id/save_mode"
+        app:layout_constraintBottom_toBottomOf="@id/overwrite_toggle"
+        app:layout_constraintTop_toTopOf="@id/overwrite_toggle"
         android:textSize="8pt"
         android:text="@string/saved"
         android:textColor="@color/colorPrimaryDark"
@@ -98,7 +98,7 @@
         android:layout_height="wrap_content"/>
 
     <Button
-        android:id="@+id/save_mode"
+        android:id="@+id/overwrite_toggle"
         android:layout_width="wrap_content"
         android:layout_height="36dp"
         android:layout_marginBottom="6dp"

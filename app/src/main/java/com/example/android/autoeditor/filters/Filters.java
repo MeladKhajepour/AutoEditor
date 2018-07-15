@@ -101,6 +101,7 @@ public class Filters {
     public static void destroyRs() {
         allocIn.destroy();
         allocOut.destroy();
+        convolutionScript.destroy();
         blurScript.destroy();
         rs.destroy();
     }
@@ -182,12 +183,7 @@ public class Filters {
         canvas.drawBitmap(sharpenedImg, 0, 0, paint); //modifies finalImg;
     }
 
-    /*
-     * Called when save button pressed
-     *
-     * Paint is already set
-     */
-    public static Bitmap applyFinalEdits(EditPicture activity, Bitmap img) {
+    public static void applyEditsToBitmap(EditPicture activity, Bitmap img) {
         rs = RenderScript.create(activity);
         allocIn = Allocation.createFromBitmap(rs, img);
         allocOut = Allocation.createFromBitmap(rs, img);
@@ -198,17 +194,23 @@ public class Filters {
             blurScript.setRadius(blurRadius);
             blurScript.forEach(allocOut);
             allocOut.copyTo(img);
+            blurScript.destroy();
         } else {
             convolutionScript = ScriptIntrinsicConvolve3x3.create(rs, Element.U8_4(rs));
             convolutionScript.setInput(allocIn);
             convolutionScript.setCoefficients(sharpnessStrength);
             convolutionScript.forEach(allocOut);
             allocOut.copyTo(img);
+            convolutionScript.destroy();
         }
+
+        allocIn.destroy();
+        allocOut.destroy();
+        rs.destroy();
 
         Canvas canvas = new Canvas(img);
         canvas.drawBitmap(img, 0, 0, paint);
-
-        return img;
+        canvas.setBitmap(null);
+        canvas = null;
     }
 }

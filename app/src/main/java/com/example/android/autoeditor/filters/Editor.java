@@ -1,14 +1,10 @@
 package com.example.android.autoeditor.filters;
 
-import android.app.ProgressDialog;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.net.Uri;
-import android.os.AsyncTask;
 import android.os.Environment;
 import android.view.View;
-import android.widget.Toast;
 
 import com.example.android.autoeditor.EditPicture;
 import com.example.android.autoeditor.R;
@@ -19,7 +15,6 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.ref.WeakReference;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -28,16 +23,15 @@ import static com.example.android.autoeditor.utils.BitmapUtils.calculateInSample
 import static com.example.android.autoeditor.utils.BitmapUtils.rotateImageIfRequired;
 import static com.example.android.autoeditor.utils.Utils.CONVOLUTION_SHARPEN;
 
-public class Editor implements Cluster.OnFilterAdjusted {
-    private EditPicture activity;
+public class Editor {
     private static boolean shouldOverwrite;
     private static int imageScaleX, imageScaleY;
     private static Uri contentUri;
-    private static File savedImgFile;
     private static File pictureDir;
     private static String imgFileName = null;
     private static String timeStamp = null;
     private static int copyCount = 1;
+    private EditPicture activity;
     private Cluster.ActiveFilter activeFilter;
     private Bitmap previewBitmap;
 
@@ -80,7 +74,6 @@ public class Editor implements Cluster.OnFilterAdjusted {
         new Cluster(new ClusterParams(this, R.id.saturation_seekbar));
     }
 
-    @Override
     public void onSeekBarTouch(Cluster.ActiveFilter activeFilter) {
         this.activeFilter = activeFilter;
 
@@ -90,13 +83,11 @@ public class Editor implements Cluster.OnFilterAdjusted {
         activity.onSeekBarTouch();
     }
 
-    @Override
-    public void onEdit() {
+    public void onSeekBarEdit() {
         previewBitmap = Filters.applyFilter(activeFilter);
-        activity.updatePreview(previewBitmap);
+        activity.updatePreview();
     }
 
-    @Override
     public void onSeekBarRelease() {
         if(activeFilter.filterType == CONVOLUTION_SHARPEN) {
             Filters.destroyRs();
@@ -117,49 +108,10 @@ public class Editor implements Cluster.OnFilterAdjusted {
         shouldOverwrite = enabled;
     }
 
-    public void saveImg() {
-        new SaveInBackground(activity).execute();
-    }
-
-    private static class SaveInBackground extends AsyncTask<Void, Void, Void> {
-        ProgressDialog pd;
-
-        WeakReference<EditPicture> activityReference;
-
-        SaveInBackground(EditPicture activity) {
-            activityReference = new WeakReference<>(activity);
-        }
-
-        @Override
-        protected void onPreExecute() {
-            pd = new ProgressDialog(activityReference.get());
-            pd.setTitle("Hang tight");
-            pd.setMessage("Your image is being saved");
-            pd.setCancelable(false);
-            pd.show();
-        }
-        @Override
-        protected Void doInBackground(Void... params) {
-            try {
-                savedImgFile = createSaveFile();//starts null
-                encodeFile(activityReference.get(), savedImgFile);
-
-                Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-                intent.setData(Uri.fromFile(savedImgFile));
-                activityReference.get().sendBroadcast(intent);
-            } catch (Exception e) {
-                Toast.makeText(activityReference.get(), "Something went wrong with saving your image ...", Toast.LENGTH_LONG).show();
-                e.printStackTrace();
-            }
-            return null;
-        }
-
-        @Override
-        protected void onPostExecute(Void result) {
-            pd.dismiss();
-            activityReference.get().onSaveComplete(savedImgFile);
-            activityReference.clear();
-        }
+    public static File saveImg(EditPicture activity) throws Exception {
+        File imgFile = createSaveFile();
+        encodeFile(activity, imgFile);
+        return imgFile;
     }
 
     @SuppressWarnings("ResultOfMethodCallIgnored")
@@ -172,26 +124,24 @@ public class Editor implements Cluster.OnFilterAdjusted {
             timeStamp = new SimpleDateFormat("yyMMdd_HHmmss", Locale.CANADA).format(new Date());
             imgFileName = "AE_" + timeStamp + ".jpeg";
 
-        } else if(shouldOverwrite) {
-            return savedImgFile;
-
-        } else {
+        } else if(!shouldOverwrite) {
             imgFileName = "AE_COPY_" + copyCount++ + "_" + timeStamp + ".jpeg";
         }
 
-        savedImgFile = new File(pictureDir, imgFileName);
-        return savedImgFile;
+        return new File(pictureDir, imgFileName);
     }
 
-    private static void encodeFile(EditPicture activity, File savedImgFile) throws IOException {
+    private static void encodeFile(EditPicture activity, File imgFile) throws IOException, NullPointerException {
+        FileOutputStream outStream = new FileOutputStream(imgFile, false);
         Bitmap originalImg = openOriginalImage(activity);
-        FileOutputStream outStream = new FileOutputStream(savedImgFile, !shouldOverwrite);
-        originalImg = Filters.applyFinalEdits(activity, originalImg);
+
+        Filters.applyEditsToBitmap(activity, originalImg);
         originalImg.compress(Bitmap.CompressFormat.JPEG, 100, outStream);
 
-        originalImg.recycle();
         outStream.flush();
         outStream.close();
+        originalImg.recycle();
+        originalImg = null;
     }
 
     private static Bitmap openOriginalImage(EditPicture activity) throws IOException, NullPointerException {
@@ -217,13 +167,5 @@ public class Editor implements Cluster.OnFilterAdjusted {
 
     public static void setContentUri(Uri uri) {
         contentUri = uri;
-    }
-
-    public interface OnSaveListener {
-        void onSaveComplete(File imgFile);
-    }
-
-    public interface OnEditListener {
-        void onSeekBarTouch();
     }
 }

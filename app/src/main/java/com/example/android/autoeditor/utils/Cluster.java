@@ -57,7 +57,7 @@ public class Cluster {
                 activeFilter.strength = progress - 100;
                 updateLabel(prefix, activeFilter.strength);
 
-                editor.onEdit();
+                editor.onSeekBarEdit();
             }
 
             @Override
@@ -95,12 +95,6 @@ public class Cluster {
 
     private void updateLabel(String prefix, float strength) {
         textView.setText(String.format(Locale.getDefault(), prefix + " " + "%d", (int) strength));
-    }
-
-    public interface OnFilterAdjusted {
-        void onSeekBarTouch(ActiveFilter activeFilter);
-        void onEdit();
-        void onSeekBarRelease();
     }
 
     public class ActiveFilter {
